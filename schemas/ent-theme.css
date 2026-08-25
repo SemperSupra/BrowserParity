@@ -1,0 +1,84 @@
+/* ====================================================================
+   🌲 ENT FANGORN DESIGN SYSTEM & COLOR PALETTE
+   ==================================================================== */
+
+:root {
+  /* Surface & Background (Ancient Deep Forest Oak) */
+  --ent-bg-deep: #0f1712;
+  --ent-bg-surface: #17231b;
+  --ent-bg-elevated: #1f2f25;
+  --ent-border-bark: #2d4234;
+  --ent-border-glow: #4ade8055;
+
+  /* Leaf & Moss Foliage (Vibrant Action Colors) */
+  --ent-moss-primary: #22c55e;
+  --ent-moss-hover: #16a34a;
+  --ent-moss-light: #86efac;
+  --ent-canopy-mint: #dcfce7;
+
+  /* Amber Sap & Heartwood (Telemetry & Attention Indicators) */
+  --ent-amber-sap: #f59e0b;
+  --ent-amber-glow: #fbbf24;
+  --ent-sap-surface: #451a0344;
+
+  /* Text & Typography */
+  --ent-text-bright: #f0fdf4;
+  --ent-text-muted: #86efaccc;
+  --ent-text-dim: #6ee7b788;
+
+  /* Status Accents */
+  --ent-status-active: #4ade80;
+  --ent-status-pending: #fbbf24;
+  --ent-status-dormant: #9ca3af;
+  --ent-status-alert: #f87171;
+
+  /* Shadows & Glows */
+  --ent-glow-ambient: 0 0 20px rgba(34, 197, 94, 0.18);
+  --ent-glow-amber: 0 0 16px rgba(245, 158, 11, 0.25);
+  --ent-shadow-panel: 0 8px 32px rgba(0, 0, 0, 0.45);
+}
+
+/* Base Ent Floating Card Component */
+.ent-card {
+  background: var(--ent-bg-surface);
+  border: 1px solid var(--ent-border-bark);
+  border-radius: 12px;
+  box-shadow: var(--ent-shadow-panel), var(--ent-glow-ambient);
+  color: var(--ent-text-bright);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  backdrop-filter: blur(8px);
+}
+
+/* Ent Action Button */
+.ent-btn {
+  background: linear-gradient(135deg, #22c55e, #15803d);
+  color: #ffffff;
+  border: 1px solid #4ade80;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ent-btn:hover {
+  background: linear-gradient(135deg, #4ade80, #16a34a);
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.5);
+  transform: translateY(-1px);
+}
+
+/* Ent Telemetry Pill */
+.ent-pill {
+  background: var(--ent-bg-elevated);
+  border: 1px solid var(--ent-border-bark);
+  color: var(--ent-moss-light);
+  border-radius: 20px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}

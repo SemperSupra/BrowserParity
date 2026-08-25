@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <linearGradient id="barkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4a3728"/>
+      <stop offset="50%" stop-color="#2d2218"/>
+      <stop offset="100%" stop-color="#1a140e"/>
+    </linearGradient>
+    <linearGradient id="mossGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4ade80"/>
+      <stop offset="100%" stop-color="#15803d"/>
+    </linearGradient>
+    <linearGradient id="amberGlow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Circle (Deep Forest) -->
+  <circle cx="64" cy="64" r="60" fill="#141d16" stroke="#22c55e" stroke-width="3"/>
+
+  <!-- Ent Trunk / Head -->
+  <path d="M40 32 C40 18, 50 14, 64 14 C78 14, 88 18, 88 32 C92 48, 94 70, 90 92 C86 108, 42 108, 38 92 C34 70, 36 48, 40 32 Z" fill="url(#barkGrad)" stroke="#1a140e" stroke-width="2"/>
+
+  <!-- Bark Texture Lines -->
+  <path d="M52 28 Q50 50 54 75 M76 28 Q78 50 74 75 M64 20 Q62 45 64 68" stroke="#1f1812" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+
+  <!-- Leaf Crown -->
+  <path d="M38 18 Q30 8 44 8 Q46 16 38 18 Z" fill="url(#mossGrad)"/>
+  <path d="M64 12 Q64 2 74 4 Q70 12 64 12 Z" fill="url(#mossGrad)"/>
+  <path d="M90 18 Q98 8 84 8 Q82 16 90 18 Z" fill="url(#mossGrad)"/>
+
+  <!-- Leaf Beard / Foliage -->
+  <path d="M44 72 Q36 86 48 98 Q56 108 64 114 Q72 108 80 98 Q92 86 84 72 Q64 82 44 72 Z" fill="url(#mossGrad)" stroke="#166534" stroke-width="1.5"/>
+  <path d="M52 82 Q48 94 56 102 Q64 108 72 102 Q80 94 76 82 Q64 90 52 82 Z" fill="#15803d"/>
+
+  <!-- Glowing Amber Eyes (Entish Wisdom) -->
+  <ellipse cx="52" cy="46" rx="6" ry="7" fill="url(#amberGlow)" filter="url(#glow)"/>
+  <ellipse cx="76" cy="46" rx="6" ry="7" fill="url(#amberGlow)" filter="url(#glow)"/>
+  <circle cx="52" cy="46" r="2.5" fill="#451a03"/>
+  <circle cx="76" cy="46" r="2.5" fill="#451a03"/>
+  <circle cx="54" cy="44" r="1.5" fill="#ffffff"/>
+  <circle cx="78" cy="44" r="1.5" fill="#ffffff"/>
+
+  <!-- Wise Ent Brow / Nose -->
+  <path d="M44 38 Q52 35 60 40 L64 56 L68 40 Q76 35 84 38" stroke="#1a140e" stroke-width="3" fill="none" stroke-linecap="round"/>
+
+  <!-- Digital Compass / Root Rune Overlay (Subtle) -->
+  <circle cx="64" cy="64" r="54" fill="none" stroke="#4ade80" stroke-width="1" stroke-dasharray="3,6" opacity="0.6"/>
+</svg>

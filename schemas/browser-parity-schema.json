@@ -1,0 +1,814 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "description": "BrowserParity Version-Gated Configuration Schema Rules",
+  "browsers": {
+    "Chrome": [
+      {
+        "category": "Search",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["default_search_provider", "guid"],
+        "value": "3BFDFA54-5DD6-4DFF-8B6C-C1715F306D6B",
+        "action": "Set",
+        "description": "DuckDuckGo search provider GUID"
+      },
+      {
+        "category": "Search",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["search", "suggest_enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble address bar search suggestions"
+      },
+      {
+        "category": "Search",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["browser", "suggested_searches_enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble browser suggested searches"
+      },
+      {
+        "category": "AI-Bloat",
+        "minVersion": 115,
+        "targetFile": "Preferences",
+        "path": ["privacy_sandbox", "m1", "topics_enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble Privacy Sandbox ad topics (v115+)"
+      },
+      {
+        "category": "AI-Bloat",
+        "minVersion": 115,
+        "targetFile": "Preferences",
+        "path": ["privacy_sandbox", "m1", "fledge_enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble Privacy Sandbox protected audience ad auctions"
+      },
+      {
+        "category": "AI-Bloat",
+        "minVersion": 115,
+        "targetFile": "Preferences",
+        "path": ["privacy_sandbox", "m1", "ad_measurement_enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble Privacy Sandbox ad measurement tracking"
+      },
+      {
+        "category": "AI-Bloat",
+        "minVersion": 115,
+        "targetFile": "Preferences",
+        "path": ["privacy_sandbox", "apis_consent_v2"],
+        "value": false,
+        "action": "Set",
+        "description": "Revoke Privacy Sandbox API consent"
+      },
+      {
+        "category": "Background-RAM",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["background_mode", "enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble running background apps when Chrome is closed"
+      },
+      {
+        "category": "Anti-Annoyance",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["profile", "default_content_setting_values", "notifications"],
+        "value": 2,
+        "action": "Set",
+        "description": "Block website notification popup requests (2 = Block)"
+      },
+      {
+        "category": "Anti-Annoyance",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["media", "autoplay_allowed"],
+        "value": false,
+        "action": "Set",
+        "description": "Block video and audio autoplay"
+      },
+      {
+        "category": "Privacy",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["webrtc", "ip_handling_policy"],
+        "value": "default_public_interface_only",
+        "action": "Set",
+        "description": "Shield local/private IP addresses from WebRTC leaks"
+      },
+      {
+        "category": "Anti-Annoyance",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["browser", "check_default_browser"],
+        "value": false,
+        "action": "Set",
+        "description": "Suppress default browser prompt nags"
+      },
+      {
+        "category": "Session",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["session", "restore_on_startup"],
+        "value": 4,
+        "action": "Set",
+        "description": "Restore previous session tabs on startup (4 = Continue where left off)"
+      },
+      {
+        "category": "Session",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["browser", "confirm_to_quit"],
+        "value": true,
+        "action": "Set",
+        "description": "Warn before quitting with multiple tabs open"
+      },
+      {
+        "category": "Session",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["browser", "warn_on_closing_tabs"],
+        "value": true,
+        "action": "Set",
+        "description": "Warn when closing tabs"
+      },
+      {
+        "category": "Downloads",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["download", "prompt_for_download"],
+        "value": false,
+        "action": "Set",
+        "description": "Silent download save without prompting"
+      },
+      {
+        "category": "Downloads",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["download", "directory_upgrade"],
+        "value": true,
+        "action": "Set",
+        "description": "Maintain designated download directory"
+      },
+      {
+        "category": "Typography",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["webkit", "webprefs", "fonts", "standard", "Zyyy"],
+        "value": "Segoe UI",
+        "action": "Set",
+        "description": "Standard font Segoe UI"
+      },
+      {
+        "category": "Typography",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["webkit", "webprefs", "fonts", "fixed", "Zyyy"],
+        "value": "Consolas",
+        "action": "Set",
+        "description": "Monospace fixed-width font Consolas"
+      },
+      {
+        "category": "Typography",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["webkit", "webprefs", "default_font_size"],
+        "value": 16,
+        "action": "Set",
+        "description": "Standard 16px font size"
+      },
+      {
+        "category": "Typography",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["webkit", "webprefs", "default_fixed_font_size"],
+        "value": 13,
+        "action": "Set",
+        "description": "Monospace 13px font size"
+      },
+      {
+        "category": "Theme",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["browser", "theme", "system_theme"],
+        "value": 1,
+        "action": "Set",
+        "description": "Dark theme mode"
+      },
+      {
+        "category": "Theme",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["extensions", "theme", "use_system"],
+        "value": false,
+        "action": "Set",
+        "description": "Explicit theme mode"
+      },
+      {
+        "category": "Network",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["enable_hyperlink_auditing"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble <a ping> click tracking"
+      },
+      {
+        "category": "Network",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["net", "network_prediction_options"],
+        "value": 2,
+        "action": "Set",
+        "description": "Enterpriseble speculative pre-connections (2 = Enterprisebled)"
+      },
+      {
+        "category": "Telemetry",
+        "minVersion": 0,
+        "targetFile": "Local State",
+        "path": ["user_experience_metrics", "reporting_enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble user experience metrics telemetry"
+      },
+      {
+        "category": "Telemetry",
+        "minVersion": 0,
+        "targetFile": "Local State",
+        "path": ["telemetry_client", "reporting_enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble telemetry client reporting"
+      }
+    ],
+
+    "Edge": [
+      {
+        "category": "Search",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["search", "suggest_enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble search suggestions"
+      },
+      {
+        "category": "AI-Bloat",
+        "minVersion": 110,
+        "targetFile": "Preferences",
+        "path": ["edge_copilot", "copilot_new_tab_page_enabled_consumer_state"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble Microsoft Copilot on New Tab Page (v110+)"
+      },
+      {
+        "category": "AI-Bloat",
+        "minVersion": 110,
+        "targetFile": "Local State",
+        "path": ["edge_copilot", "copilot_new_tab_page_enabled_commercial_state"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble commercial Copilot NTP"
+      },
+      {
+        "category": "AI-Bloat",
+        "minVersion": 110,
+        "targetFile": "Local State",
+        "path": ["edge_copilot_mode_enabled_state", "Default"],
+        "value": 0,
+        "action": "Set",
+        "description": "Enterpriseble Edge Copilot Mode"
+      },
+      {
+        "category": "Commercial-Bloat",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["edge_shopping", "enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble Edge Shopping, Coupons & Price Comparisons"
+      },
+      {
+        "category": "Commercial-Bloat",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["edge_rewards", "enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble Microsoft Rewards prompts"
+      },
+      {
+        "category": "Commercial-Bloat",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["edge_wallet", "enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble Edge Wallet prompts"
+      },
+      {
+        "category": "Background-RAM",
+        "minVersion": 112,
+        "targetFile": "Local State",
+        "path": ["startup_boost", "enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble Startup Boost background processes on boot (v112+)"
+      },
+      {
+        "category": "Anti-Annoyance",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["profile", "default_content_setting_values", "notifications"],
+        "value": 2,
+        "action": "Set",
+        "description": "Block website notification popup requests"
+      },
+      {
+        "category": "Anti-Annoyance",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["media", "autoplay_allowed"],
+        "value": false,
+        "action": "Set",
+        "description": "Block video and audio autoplay"
+      },
+      {
+        "category": "Privacy",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["webrtc", "ip_handling_policy"],
+        "value": "default_public_interface_only",
+        "action": "Set",
+        "description": "Shield local IP addresses from WebRTC leaks"
+      },
+      {
+        "category": "Session",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["session", "restore_on_startup"],
+        "value": 4,
+        "action": "Set",
+        "description": "Restore previous session tabs on startup"
+      },
+      {
+        "category": "Typography",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["webkit", "webprefs", "fonts", "standard", "Zyyy"],
+        "value": "Segoe UI",
+        "action": "Set",
+        "description": "Standard font Segoe UI"
+      },
+      {
+        "category": "Typography",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["webkit", "webprefs", "fonts", "fixed", "Zyyy"],
+        "value": "Consolas",
+        "action": "Set",
+        "description": "Monospace fixed-width font Consolas"
+      },
+      {
+        "category": "Theme",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["browser", "theme", "system_theme"],
+        "value": 1,
+        "action": "Set",
+        "description": "Dark theme mode"
+      },
+      {
+        "category": "Network",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["enable_hyperlink_auditing"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble <a ping> click tracking"
+      },
+      {
+        "category": "Network",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["net", "network_prediction_options"],
+        "value": 2,
+        "action": "Set",
+        "description": "Enterpriseble speculative pre-connections"
+      }
+    ],
+
+    "Opera": [
+      {
+        "category": "Search",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["search", "suggest_enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble search suggestions"
+      },
+      {
+        "category": "AI-Bloat",
+        "minVersion": 100,
+        "targetFile": "Preferences",
+        "path": ["ui", "ask_ai", "button_enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble Aria AI address bar button (v100+)"
+      },
+      {
+        "category": "AI-Bloat",
+        "minVersion": 100,
+        "targetFile": "Preferences",
+        "path": ["ui", "ask_ai", "enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble Aria Ask AI feature (v100+)"
+      },
+      {
+        "category": "AI-Bloat",
+        "minVersion": 105,
+        "targetFile": "Preferences",
+        "path": ["opera", "ai_services", "ai_prompts_enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble Opera AI prompt popups (v105+)"
+      },
+      {
+        "category": "Commercial-Bloat",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["adblocker", "acceptable_ads", "enabled"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble acceptable ads in native ad blocker"
+      },
+      {
+        "category": "Commercial-Bloat",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["opera", "start_page", "show_news"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble news feed on start page"
+      },
+      {
+        "category": "Commercial-Bloat",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["opera", "start_page", "show_speed_dial_suggestions"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble sponsored speed dial suggestions"
+      },
+      {
+        "category": "Anti-Annoyance",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["profile", "default_content_setting_values", "notifications"],
+        "value": 2,
+        "action": "Set",
+        "description": "Block notification spam"
+      },
+      {
+        "category": "Anti-Annoyance",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["media", "autoplay_allowed"],
+        "value": false,
+        "action": "Set",
+        "description": "Block video and audio autoplay"
+      },
+      {
+        "category": "Privacy",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["webrtc", "ip_handling_policy"],
+        "value": "default_public_interface_only",
+        "action": "Set",
+        "description": "Shield local IP addresses from WebRTC leaks"
+      },
+      {
+        "category": "Theme",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["force_dark_mode", "enabled"],
+        "value": true,
+        "action": "Set",
+        "description": "Enable native Opera Force Dark Mode"
+      },
+      {
+        "category": "Session",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["session", "restore_on_startup"],
+        "value": 4,
+        "action": "Set",
+        "description": "Restore previous session tabs on startup"
+      },
+      {
+        "category": "Typography",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["webkit", "webprefs", "fonts", "standard", "Zyyy"],
+        "value": "Segoe UI",
+        "action": "Set",
+        "description": "Standard font Segoe UI"
+      },
+      {
+        "category": "Typography",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["webkit", "webprefs", "fonts", "fixed", "Zyyy"],
+        "value": "Consolas",
+        "action": "Set",
+        "description": "Monospace font Consolas"
+      },
+      {
+        "category": "Network",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["enable_hyperlink_auditing"],
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble <a ping> click tracking"
+      },
+      {
+        "category": "Network",
+        "minVersion": 0,
+        "targetFile": "Preferences",
+        "path": ["net", "network_prediction_options"],
+        "value": 2,
+        "action": "Set",
+        "description": "Enterpriseble speculative pre-connections"
+      }
+    ],
+
+    "Firefox": [
+      {
+        "category": "Search",
+        "minVersion": 0,
+        "pref": "browser.search.defaultenginename",
+        "value": "DuckDuckGo",
+        "action": "Set",
+        "description": "DuckDuckGo default search"
+      },
+      {
+        "category": "Search",
+        "minVersion": 0,
+        "pref": "browser.urlbar.placeholderName",
+        "value": "DuckDuckGo",
+        "action": "Set",
+        "description": "DuckDuckGo placeholder in URL bar"
+      },
+      {
+        "category": "Search",
+        "minVersion": 0,
+        "pref": "browser.search.suggest.enabled",
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble search suggestions"
+      },
+      {
+        "category": "Search",
+        "minVersion": 119,
+        "pref": "browser.urlbar.suggest.trending",
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble trending search suggestions in URL bar (v119+)"
+      },
+      {
+        "category": "AI-Bloat",
+        "minVersion": 0,
+        "pref": "extensions.pocket.enabled",
+        "value": false,
+        "action": "Set",
+        "description": "Completely Enterpriseble Pocket integration"
+      },
+      {
+        "category": "Commercial-Bloat",
+        "minVersion": 0,
+        "pref": "browser.newtabpage.activity-stream.showSponsored",
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble sponsored links on New Tab Page"
+      },
+      {
+        "category": "Commercial-Bloat",
+        "minVersion": 0,
+        "pref": "browser.newtabpage.activity-stream.showSponsoredTopSites",
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble sponsored top sites"
+      },
+      {
+        "category": "Commercial-Bloat",
+        "minVersion": 0,
+        "pref": "browser.newtabpage.activity-stream.feeds.section.topstories",
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble top stories feed"
+      },
+      {
+        "category": "Telemetry",
+        "minVersion": 0,
+        "pref": "datareporting.policy.dataSubmissionEnabled",
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble telemetry data submission"
+      },
+      {
+        "category": "Telemetry",
+        "minVersion": 0,
+        "pref": "toolkit.telemetry.enabled",
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble toolkit telemetry"
+      },
+      {
+        "category": "Privacy",
+        "minVersion": 103,
+        "pref": "network.cookie.cookieBehavior",
+        "value": 5,
+        "action": "Set",
+        "description": "Total Cookie Protection (v103+)"
+      },
+      {
+        "category": "Anti-Annoyance",
+        "minVersion": 0,
+        "pref": "permissions.default.desktop-notification",
+        "value": 2,
+        "action": "Set",
+        "description": "Block website notification popup requests"
+      },
+      {
+        "category": "Anti-Annoyance",
+        "minVersion": 0,
+        "pref": "media.autoplay.default",
+        "value": 5,
+        "action": "Set",
+        "description": "Block video and audio autoplay (5 = Block All)"
+      },
+      {
+        "category": "Privacy",
+        "minVersion": 0,
+        "pref": "media.peerconnection.ice.no_host",
+        "value": true,
+        "action": "Set",
+        "description": "Shield local/private IP addresses from WebRTC leaks"
+      },
+      {
+        "category": "Network",
+        "minVersion": 118,
+        "pref": "network.dns.echconfig.enabled",
+        "value": true,
+        "action": "Set",
+        "description": "Encrypted Client Hello (ECH / Encrypted SNI) (v118+)"
+      },
+      {
+        "category": "Network",
+        "minVersion": 118,
+        "pref": "network.dns.http3_echconfig.enabled",
+        "value": true,
+        "action": "Set",
+        "description": "HTTP/3 Encrypted Client Hello (v118+)"
+      },
+      {
+        "category": "Network",
+        "minVersion": 0,
+        "pref": "browser.send_pings",
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble <a ping> click tracking"
+      },
+      {
+        "category": "Network",
+        "minVersion": 0,
+        "pref": "beacon.enabled",
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble navigator.sendBeacon() tracking"
+      },
+      {
+        "category": "Network",
+        "minVersion": 0,
+        "pref": "network.prefetch-next",
+        "value": false,
+        "action": "Set",
+        "description": "Enterpriseble prefetching next pages"
+      },
+      {
+        "category": "Network",
+        "minVersion": 0,
+        "pref": "network.dns.EnterpriseblePrefetch",
+        "value": true,
+        "action": "Set",
+        "description": "Enterpriseble speculative DNS prefetching"
+      },
+      {
+        "category": "Network",
+        "minVersion": 0,
+        "pref": "network.http.referer.XOriginPolicy",
+        "value": 2,
+        "action": "Set",
+        "description": "Strict cross-origin referrer policy"
+      },
+      {
+        "category": "Network",
+        "minVersion": 0,
+        "pref": "network.http.referer.XOriginTrimmingPolicy",
+        "value": 2,
+        "action": "Set",
+        "description": "Trim referrers to origin only"
+      },
+      {
+        "category": "Session",
+        "minVersion": 0,
+        "pref": "browser.startup.page",
+        "value": 3,
+        "action": "Set",
+        "description": "Restore previous session tabs on startup (3 = Restore)"
+      },
+      {
+        "category": "Session",
+        "minVersion": 0,
+        "pref": "browser.sessionstore.warnOnQuit",
+        "value": true,
+        "action": "Set",
+        "description": "Warn when quitting multiple tabs"
+      },
+      {
+        "category": "Typography",
+        "minVersion": 0,
+        "pref": "font.name.sans-serif.x-western",
+        "value": "Segoe UI",
+        "action": "Set",
+        "description": "Standard font Segoe UI"
+      },
+      {
+        "category": "Typography",
+        "minVersion": 0,
+        "pref": "font.name.monospace.x-western",
+        "value": "Consolas",
+        "action": "Set",
+        "description": "Monospace font Consolas"
+      },
+      {
+        "category": "Typography",
+        "minVersion": 0,
+        "pref": "font.size.variable.x-western",
+        "value": 16,
+        "action": "Set",
+        "description": "16px standard font"
+      },
+      {
+        "category": "Typography",
+        "minVersion": 0,
+        "pref": "font.size.monospace.x-western",
+        "value": 13,
+        "action": "Set",
+        "description": "13px monospace font"
+      },
+      {
+        "category": "Theme",
+        "minVersion": 0,
+        "pref": "layout.css.prefers-color-scheme.content-override",
+        "value": 0,
+        "action": "Set",
+        "description": "Native Dark theme content override (0 = Dark)"
+      },
+      {
+        "category": "Theme",
+        "minVersion": 0,
+        "pref": "extensions.activeThemeID",
+        "value": "firefox-compact-dark@mozilla.org",
+        "action": "Set",
+        "description": "Compact Dark native theme"
+      },
+      {
+        "category": "Client-Cert-PKI",
+        "minVersion": 90,
+        "pref": "security.osclientcerts.autoload",
+        "value": true,
+        "action": "Set",
+        "description": "Autoload OS Smart Card and Client Certificates into Firefox (v90+)"
+      },
+      {
+        "category": "Client-Cert-PKI",
+        "minVersion": 65,
+        "pref": "security.enterprise_roots.enabled",
+        "value": true,
+        "action": "Set",
+        "description": "Trust Windows OS Root Store enterprise certificate authorities (v65+)"
+      }
+    ]
+  }
+}

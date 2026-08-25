@@ -1,0 +1,28 @@
+# BrowserParity Git Ignore
+# Exclude timestamped local browser profile backups
+backups/
+backups/**
+
+# Log files and crash dumps
+*.log
+*.dmp
+*.tmp
+
+# Editor and OS metadata
+.vscode/
+.idea/
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Local Python & Test Environments (Zero System Pollution)
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/results/
+private/results/
+playwright-report/
+test-results/
