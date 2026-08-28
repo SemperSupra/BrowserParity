@@ -16,13 +16,23 @@ This directory is deliberately a **spike**, not a reusable test framework.
 - pnpm: 11.20.0
 - Playwright Test: 1.62.1
 
-## Success ladder
+## Experimental attempts
 
-The test records each stage independently:
+### Attempt 1 — direct `.user.js` navigation
+
+GitHub Actions run `33196647384` proved that the pinned MV3 extension builds and loads under Playwright headless Chromium: its real extension service worker was observed. Direct navigation to the loopback `probe.user.js` URL then became a Chromium download before a Violentmonkey installation page appeared.
+
+That is evidence against the original assumption that direct `.user.js` navigation is a reliable install trigger in this exact headless MV3 configuration. The result is preserved rather than hidden by a workaround.
+
+### Attempt 2 — supported Violentmonkey `Install from URL`
+
+Violentmonkey's own Installed view exposes `New` -> `Install from URL`, which calls its internal `ConfirmInstall` path. Attempt 2 uses that ordinary visible manager UI. This still tests the real manager and does not inject the probe with Playwright.
+
+The revised success ladder is:
 
 1. extension service worker observed;
-2. `.user.js` navigation intercepted by Violentmonkey;
-3. installation UI completed using ordinary visible browser UI;
+2. Violentmonkey's supported `Install from URL` flow opens its confirmation UI for the probe;
+3. installation completes through the visible `Confirm installation` control;
 4. installed probe executes on the fixture page;
 5. `GM_addStyle` changes computed page style.
 
@@ -36,4 +46,4 @@ A red run is also useful if the evidence identifies the unsupported or brittle b
 
 ## Local shape
 
-The GitHub Actions workflow builds Violentmonkey separately and exposes its unpacked `dist/` directory through `VM_EXTENSION_PATH`. The Playwright test runs a loopback HTTP fixture server, serves `probe.user.js`, and never injects the probe with Playwright APIs.
+The GitHub Actions workflow builds Violentmonkey separately and exposes its unpacked `dist-mv3/` directory through `VM_EXTENSION_PATH`. The Playwright test runs a loopback HTTP fixture server, serves `probe.user.js`, and never injects the probe with Playwright APIs.
