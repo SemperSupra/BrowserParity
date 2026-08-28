@@ -72,18 +72,25 @@ test('real Violentmonkey can install and execute a public probe in headless Chro
 
   fs.mkdirSync('artifacts', { recursive: true });
   const evidence = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     experiment: 'BrowserParity#2',
-    attempt: 'supported-install-from-url',
-    priorAttempt: {
-      runId: 33196647384,
-      result: 'direct .user.js navigation became a Chromium download before a Violentmonkey confirmation page appeared',
-    },
+    attempt: 'supported-install-then-execution-gate',
+    priorAttempts: [
+      {
+        runId: 33196647384,
+        result: 'direct .user.js navigation became a Chromium download before a Violentmonkey confirmation page appeared',
+      },
+      {
+        runId: 33196961814,
+        result: 'Violentmonkey Install from URL reached the real confirmation UI; test used the wrong confirmation button label',
+      },
+    ],
     playwrightVersion: require('@playwright/test/package.json').version,
     violentmonkeyRevision: process.env.VM_REVISION || null,
     extensionPath,
     rungs: {
       extensionLoaded: false,
+      userScriptsApiAvailable: false,
       managerInstallFlowOpened: false,
       installCompleted: false,
       probeExecuted: false,
@@ -114,11 +121,27 @@ test('real Violentmonkey can install and execute a public probe in headless Chro
     evidence.extensionId = extensionId;
     evidence.rungs.extensionLoaded = true;
 
+    evidence.userScriptsApi = await serviceWorker.evaluate(async () => {
+      const state = {
+        type: typeof chrome.userScripts,
+        available: false,
+        getScriptsError: null,
+        userAgent: navigator.userAgent,
+      };
+      if (!chrome.userScripts) return state;
+      try {
+        await chrome.userScripts.getScripts();
+        state.available = true;
+      } catch (error) {
+        state.getScriptsError = String(error);
+      }
+      return state;
+    });
+    evidence.rungs.userScriptsApiAvailable = evidence.userScriptsApi.available;
+
     const userscriptUrl = `${baseUrl}/probe.user.js`;
     evidence.userscriptUrl = userscriptUrl;
 
-    // Attempt 2 deliberately uses Violentmonkey's documented manager UI instead
-    // of assuming raw .user.js navigation interception works in this MV3 setup.
     const optionsPage = await context.newPage();
     await optionsPage.goto(`chrome-extension://${extensionId}/options/index.html#scripts`, {
       waitUntil: 'domcontentloaded',
@@ -150,8 +173,8 @@ test('real Violentmonkey can install and execute a public probe in headless Chro
 
     const buttons = await installPage.getByRole('button').allTextContents().catch(() => []);
     evidence.installPageButtons = buttons;
-    const installButton = installPage.getByRole('button', { name: /confirm installation/i }).first();
-    await expect(installButton, `Expected Violentmonkey's visible Confirm installation button; observed buttons: ${JSON.stringify(buttons)}`).toBeVisible();
+    const installButton = installPage.getByRole('button', { name: /^Install$/i }).first();
+    await expect(installButton, `Expected Violentmonkey's visible Install button; observed buttons: ${JSON.stringify(buttons)}`).toBeVisible();
     await installButton.click();
     evidence.rungs.installCompleted = true;
 
