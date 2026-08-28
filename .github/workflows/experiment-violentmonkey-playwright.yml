@@ -1,0 +1,85 @@
+name: EXPERIMENT - Playwright with real Violentmonkey
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/experiment-violentmonkey-playwright.yml'
+      - 'experiments/violentmonkey-playwright/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vm-playwright-experiment-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  spike:
+    name: Public userscript-manager spike
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      VM_REVISION: a3ed56b838798cca5241483a97911dabe9bce7a8
+      VM_ROOT: ${{ github.workspace }}/.experiment/violentmonkey
+      VM_EXTENSION_PATH: ${{ github.workspace }}/.experiment/violentmonkey/dist
+      EXPERIMENT_ROOT: ${{ github.workspace }}/experiments/violentmonkey-playwright
+
+    steps:
+      - name: Check out BrowserParity experiment
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up Node 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: experiments/violentmonkey-playwright/package.json
+
+      - name: Install pinned Playwright
+        working-directory: experiments/violentmonkey-playwright
+        run: npm install --no-audit --no-fund
+
+      - name: Install extension-capable Playwright Chromium
+        working-directory: experiments/violentmonkey-playwright
+        run: npx playwright install --with-deps --no-shell chromium
+
+      - name: Fetch exact Violentmonkey revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$(dirname "$VM_ROOT")"
+          git init "$VM_ROOT"
+          git -C "$VM_ROOT" remote add origin https://github.com/violentmonkey/violentmonkey.git
+          git -C "$VM_ROOT" fetch --depth 1 origin "$VM_REVISION"
+          git -C "$VM_ROOT" checkout --detach FETCH_HEAD
+          test "$(git -C "$VM_ROOT" rev-parse HEAD)" = "$VM_REVISION"
+
+      - name: Build pinned Violentmonkey MV3
+        shell: bash
+        run: |
+          set -euo pipefail
+          corepack enable
+          corepack prepare pnpm@11.20.0 --activate
+          pnpm --dir "$VM_ROOT" install --frozen-lockfile
+          pnpm --dir "$VM_ROOT" build:mv3
+          test -f "$VM_EXTENSION_PATH/manifest.json"
+          mkdir -p "$EXPERIMENT_ROOT/artifacts"
+          cp "$VM_EXTENSION_PATH/manifest.json" "$EXPERIMENT_ROOT/artifacts/violentmonkey-manifest.json"
+          printf '%s\n' "$VM_REVISION" > "$EXPERIMENT_ROOT/artifacts/violentmonkey-revision.txt"
+
+      - name: Run experiment
+        working-directory: experiments/violentmonkey-playwright
+        env:
+          VM_REVISION: ${{ env.VM_REVISION }}
+          VM_EXTENSION_PATH: ${{ env.VM_EXTENSION_PATH }}
+        run: npx playwright test
+
+      - name: Upload experiment evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: violentmonkey-playwright-experiment
+          path: experiments/violentmonkey-playwright/artifacts/
+          if-no-files-found: warn
+          retention-days: 14
