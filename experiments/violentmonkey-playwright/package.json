@@ -1,0 +1,12 @@
+{
+  "name": "browserparity-violentmonkey-playwright-experiment",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Disposable spike for testing a real Violentmonkey userscript path under headless Playwright.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1"
+  }
+}
