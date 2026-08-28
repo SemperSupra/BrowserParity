@@ -48,7 +48,7 @@ async function snapshotPages(context) {
   return Promise.all(context.pages().map(async (page) => ({
     url: page.url(),
     title: await page.title().catch(() => ''),
-    body: (await page.locator('body').innerText().catch(() => '')).slice(0, 2000),
+    body: (await page.locator('body').innerText().catch(() => '')).slice(0, 4000),
   })));
 }
 
@@ -72,14 +72,19 @@ test('real Violentmonkey can install and execute a public probe in headless Chro
 
   fs.mkdirSync('artifacts', { recursive: true });
   const evidence = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     experiment: 'BrowserParity#2',
+    attempt: 'supported-install-from-url',
+    priorAttempt: {
+      runId: 33196647384,
+      result: 'direct .user.js navigation became a Chromium download before a Violentmonkey confirmation page appeared',
+    },
     playwrightVersion: require('@playwright/test/package.json').version,
     violentmonkeyRevision: process.env.VM_REVISION || null,
     extensionPath,
     rungs: {
       extensionLoaded: false,
-      installIntercepted: false,
+      managerInstallFlowOpened: false,
       installCompleted: false,
       probeExecuted: false,
       gmAddStyleObserved: false,
@@ -109,26 +114,44 @@ test('real Violentmonkey can install and execute a public probe in headless Chro
     evidence.extensionId = extensionId;
     evidence.rungs.extensionLoaded = true;
 
-    const navigationPage = await context.newPage();
     const userscriptUrl = `${baseUrl}/probe.user.js`;
     evidence.userscriptUrl = userscriptUrl;
 
-    try {
-      await navigationPage.goto(userscriptUrl, { waitUntil: 'domcontentloaded', timeout: 15_000 });
-    } catch (error) {
-      evidence.userscriptNavigationError = String(error);
-    }
+    // Attempt 2 deliberately uses Violentmonkey's documented manager UI instead
+    // of assuming raw .user.js navigation interception works in this MV3 setup.
+    const optionsPage = await context.newPage();
+    await optionsPage.goto(`chrome-extension://${extensionId}/options/index.html#scripts`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await optionsPage.waitForTimeout(500);
+    evidence.optionsPageBeforeInstall = await snapshotPages(context);
+
+    const newMenuButton = optionsPage.locator('header .btn-group .btn-ghost').first();
+    await expect(newMenuButton, 'Violentmonkey Installed view should expose its New menu').toBeVisible();
+    await newMenuButton.click();
+
+    const installFromUrl = optionsPage.getByText('Install from URL', { exact: true });
+    await expect(installFromUrl, 'Violentmonkey should expose its supported Install from URL action').toBeVisible();
+    await installFromUrl.click();
+
+    const urlInput = optionsPage.locator('input:visible').last();
+    await expect(urlInput, 'Install from URL should show an ordinary visible URL input').toBeVisible();
+    await urlInput.fill(userscriptUrl);
+
+    const okButton = optionsPage.getByRole('button', { name: /^OK$/i }).last();
+    await expect(okButton, 'Install from URL confirmation should expose an ordinary OK button').toBeVisible();
+    await okButton.click();
 
     const installPage = await findProbeInstallPage(context, extensionId);
-    evidence.pagesAfterUserscriptNavigation = await snapshotPages(context);
-    expect(installPage, 'Violentmonkey should own a visible installation page containing the probe name').not.toBeNull();
+    evidence.pagesAfterManagerInstallRequest = await snapshotPages(context);
+    expect(installPage, 'Violentmonkey should open its confirmation UI containing the public probe name').not.toBeNull();
     evidence.installPageUrl = installPage.url();
-    evidence.rungs.installIntercepted = true;
+    evidence.rungs.managerInstallFlowOpened = true;
 
     const buttons = await installPage.getByRole('button').allTextContents().catch(() => []);
     evidence.installPageButtons = buttons;
-    const installButton = installPage.getByRole('button', { name: /install/i }).first();
-    await expect(installButton, `Expected an ordinary visible Install button; observed buttons: ${JSON.stringify(buttons)}`).toBeVisible();
+    const installButton = installPage.getByRole('button', { name: /confirm installation/i }).first();
+    await expect(installButton, `Expected Violentmonkey's visible Confirm installation button; observed buttons: ${JSON.stringify(buttons)}`).toBeVisible();
     await installButton.click();
     evidence.rungs.installCompleted = true;
 
