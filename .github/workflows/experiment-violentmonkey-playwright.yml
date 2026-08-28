@@ -22,7 +22,7 @@ jobs:
     env:
       VM_REVISION: a3ed56b838798cca5241483a97911dabe9bce7a8
       VM_ROOT: ${{ github.workspace }}/.experiment/violentmonkey
-      VM_EXTENSION_PATH: ${{ github.workspace }}/.experiment/violentmonkey/dist
+      VM_EXTENSION_PATH: ${{ github.workspace }}/.experiment/violentmonkey/dist-mv3
       EXPERIMENT_ROOT: ${{ github.workspace }}/experiments/violentmonkey-playwright
 
     steps:
