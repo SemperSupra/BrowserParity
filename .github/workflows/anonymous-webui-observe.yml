@@ -45,7 +45,7 @@ jobs:
 
       - name: Run bounded anonymous observations
         run: |
-          .venv/bin/python experiments/anonymous-webui/observe.py \
+          .venv/bin/python experiments/anonymous-webui/observe_entrypoint.py \
             --manifest experiments/anonymous-webui/targets.json \
             --output artifacts/anonymous-webui \
             --target "$TARGET"
