@@ -1,0 +1,60 @@
+{
+  "schema_version": "browserparity.anonymous-webui.targets/v1",
+  "task": {
+    "prompt": "Reply with exactly: BROWSERPARITY-OK",
+    "landing_settle_seconds": 4,
+    "post_submit_seconds": 10,
+    "max_network_events": 300
+  },
+  "targets": [
+    {
+      "id": "chatgpt",
+      "provider": "OpenAI ChatGPT",
+      "url": "https://chatgpt.com/",
+      "priority": "P0",
+      "enabled": true
+    },
+    {
+      "id": "duckai",
+      "provider": "DuckDuckGo Duck.ai",
+      "url": "https://duck.ai/",
+      "priority": "P0",
+      "enabled": true
+    },
+    {
+      "id": "perplexity",
+      "provider": "Perplexity",
+      "url": "https://www.perplexity.ai/",
+      "priority": "P0",
+      "enabled": true
+    },
+    {
+      "id": "copilot",
+      "provider": "Microsoft Copilot",
+      "url": "https://copilot.microsoft.com/",
+      "priority": "P0",
+      "enabled": true
+    },
+    {
+      "id": "gemini",
+      "provider": "Google Gemini",
+      "url": "https://gemini.google.com/",
+      "priority": "P0",
+      "enabled": true
+    },
+    {
+      "id": "pi",
+      "provider": "Pi",
+      "url": "https://pi.ai/",
+      "priority": "P1",
+      "enabled": false
+    },
+    {
+      "id": "meta-ai",
+      "provider": "Meta AI",
+      "url": "https://www.meta.ai/",
+      "priority": "P1",
+      "enabled": false
+    }
+  ]
+}
