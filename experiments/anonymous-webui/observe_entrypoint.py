@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
 """Validated entrypoint composition for anonymous WebUI observation.
 
-Hosted reps exposed two independent browser-control failure modes on busy,
-framework-controlled inputs: Playwright ``fill`` can fail actionability even when
-the DOM proves the textarea visible/enabled, and ``insert_text`` can fail to
-produce realistic framework input semantics. This entrypoint keeps the generic,
-provider-neutral locator, falls back to ordinary keyboard key events, and
-requires evidence that the selected input actually changed before it attempts
-submission.
+Hosted reps exposed browser-control failure modes on framework-controlled inputs.
+Keep the generic, provider-neutral locator and progress through increasingly
+user-like bounded controls: normal Playwright fill first, then a real mouse click
+at the independently proven visible textarea bounds followed by ordinary keyboard
+key events. The observer requires evidence that the selected input actually
+changed before it attempts submission.
 
-Confirmation remains content-free: only input lengths/empty state and ephemeral
-post-submit request/response counts are retained. No page text, prompt text,
-request/response bodies, headers, cookies, credentials, screenshots, or reusable
-session material are added to evidence.
+Confirmation remains content-free: only focus booleans, input lengths/empty state,
+and ephemeral post-submit request/response counts are retained. No page text,
+prompt text, request/response bodies, headers, cookies, credentials, screenshots,
+or reusable session material are added to evidence.
 """
 
 from __future__ import annotations
@@ -32,6 +31,7 @@ def _input_state(locator) -> dict[str, Any]:
                 const value = (typeof e.value === 'string') ? e.value : (e.textContent || '');
                 return {
                     attached: e.isConnected,
+                    focused: document.activeElement === e,
                     length: value.length,
                     nonempty: value.length > 0
                 };
@@ -39,11 +39,12 @@ def _input_state(locator) -> dict[str, Any]:
         )
         return {
             "attached": bool(state.get("attached")),
+            "focused": bool(state.get("focused")),
             "length": int(state.get("length") or 0),
             "nonempty": bool(state.get("nonempty")),
         }
     except Exception as exc:
-        return {"attached": False, "error_type": type(exc).__name__}
+        return {"attached": False, "focused": False, "error_type": type(exc).__name__}
 
 
 def robust_attempt_single_prompt(
@@ -70,20 +71,34 @@ def robust_attempt_single_prompt(
     initial_state = _input_state(locator)
     result["input_initial"] = initial_state
 
-    # First retain normal Playwright semantics. If actionability times out on an
-    # element independently proven visible/enabled/editable, focus that same
-    # element and generate ordinary browser keyboard events. No alternate
-    # element, hidden API, script submission, or provider-specific bypass is used.
+    # Normal Playwright fill is the preferred user-level mechanism. If its
+    # actionability model rejects an element the DOM independently proves visible
+    # and enabled, click the visible element's center with the browser mouse and
+    # type ordinary key events. This is still the same UI control: no hidden API,
+    # alternate selector, script-set value, or provider-specific bypass.
     try:
         locator.fill(prompt, timeout=2500)
         result["input_method"] = "playwright_fill"
     except Exception as exc:
         result["fill_error_type"] = type(exc).__name__
         try:
-            locator.evaluate("e => e.focus()")
+            box = locator.bounding_box(timeout=2500)
+            if not box or box.get("width", 0) <= 0 or box.get("height", 0) <= 0:
+                result["input_fallback_error"] = "no_positive_bounding_box"
+                return result
+            page.mouse.click(
+                float(box["x"]) + float(box["width"]) / 2,
+                float(box["y"]) + float(box["height"]) / 2,
+            )
+            time.sleep(0.15)
+            focused_state = _input_state(locator)
+            result["input_after_mouse_click"] = focused_state
+            if not focused_state.get("focused"):
+                result["input_fallback_error"] = "mouse_click_did_not_focus_target"
+                return result
             page.keyboard.press("Control+A")
             page.keyboard.type(prompt, delay=8)
-            result["input_method"] = "dom_focus_keyboard_type"
+            result["input_method"] = "mouse_center_keyboard_type"
         except Exception as fallback_exc:
             result["input_fallback_error_type"] = type(fallback_exc).__name__
             return result
@@ -92,18 +107,12 @@ def robust_attempt_single_prompt(
     result["input_before_submit"] = entered_state
     initial_length = int(initial_state.get("length") or 0)
     entered_length = int(entered_state.get("length") or 0)
-    # We deliberately do not retain or compare prompt bytes. A substantial length
-    # increase is sufficient to prove that user-like input reached the selected
-    # control. This avoids treating an emitted keyboard command as successful input.
     input_effect_observed = bool(entered_state.get("nonempty")) and entered_length > initial_length + 4
     result["input_effect_observed"] = input_effect_observed
     if not input_effect_observed:
         result["input_error"] = "no_material_input_state_change"
         return result
 
-    # These handlers count only activity after the submit attempt. They are
-    # independent of the base recorder's bounded retained event list, which may
-    # already be full on busy landing pages. No URL/header/body is retained here.
     post_submit_counts = {"requests": 0, "responses": 0}
 
     def count_request(_request) -> None:
