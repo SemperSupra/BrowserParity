@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """Validated entrypoint composition for anonymous WebUI observation.
 
-Rep 2 showed Copilot's prompt textarea was correctly identified but Playwright's
-normal actionability path timed out before submission. Rep 3 then showed that
-our capped retained network-event list could saturate during landing, making a
-post-submit network delta falsely read zero. Keep the generic, provider-neutral
-locator and interaction fallback, but confirm submission effects with ephemeral
-counters and non-content input state.
+Hosted reps exposed two independent browser-control failure modes on busy,
+framework-controlled inputs: Playwright ``fill`` can fail actionability even when
+the DOM proves the textarea visible/enabled, and ``insert_text`` can fail to
+produce realistic framework input semantics. This entrypoint keeps the generic,
+provider-neutral locator, falls back to ordinary keyboard key events, and
+requires evidence that the selected input actually changed before it attempts
+submission.
 
-No additional trace payload is retained: counters contain only event counts, and
-input state contains only empty/non-empty/length metadata. No page text,
+Confirmation remains content-free: only input lengths/empty state and ephemeral
+post-submit request/response counts are retained. No page text, prompt text,
 request/response bodies, headers, cookies, credentials, screenshots, or reusable
-session material are added.
+session material are added to evidence.
 """
 
 from __future__ import annotations
@@ -66,11 +67,13 @@ def robust_attempt_single_prompt(
     before = base.body_fingerprint(page)
     network_before = len(network_events)
     result["prompt_attempted"] = True
+    initial_state = _input_state(locator)
+    result["input_initial"] = initial_state
 
     # First retain normal Playwright semantics. If actionability times out on an
     # element independently proven visible/enabled/editable, focus that same
-    # element and generate ordinary keyboard input. No alternate element,
-    # hidden API, script submission, or provider-specific bypass is used.
+    # element and generate ordinary browser keyboard events. No alternate
+    # element, hidden API, script submission, or provider-specific bypass is used.
     try:
         locator.fill(prompt, timeout=2500)
         result["input_method"] = "playwright_fill"
@@ -79,18 +82,28 @@ def robust_attempt_single_prompt(
         try:
             locator.evaluate("e => e.focus()")
             page.keyboard.press("Control+A")
-            page.keyboard.insert_text(prompt)
-            result["input_method"] = "dom_focus_keyboard"
+            page.keyboard.type(prompt, delay=8)
+            result["input_method"] = "dom_focus_keyboard_type"
         except Exception as fallback_exc:
             result["input_fallback_error_type"] = type(fallback_exc).__name__
             return result
 
-    result["input_before_submit"] = _input_state(locator)
+    entered_state = _input_state(locator)
+    result["input_before_submit"] = entered_state
+    initial_length = int(initial_state.get("length") or 0)
+    entered_length = int(entered_state.get("length") or 0)
+    # We deliberately do not retain or compare prompt bytes. A substantial length
+    # increase is sufficient to prove that user-like input reached the selected
+    # control. This avoids treating an emitted keyboard command as successful input.
+    input_effect_observed = bool(entered_state.get("nonempty")) and entered_length > initial_length + 4
+    result["input_effect_observed"] = input_effect_observed
+    if not input_effect_observed:
+        result["input_error"] = "no_material_input_state_change"
+        return result
 
     # These handlers count only activity after the submit attempt. They are
-    # intentionally independent of the base recorder's bounded retained list,
-    # which may already be full on busy landing pages. No URL/header/body is
-    # retained by these counters.
+    # independent of the base recorder's bounded retained event list, which may
+    # already be full on busy landing pages. No URL/header/body is retained here.
     post_submit_counts = {"requests": 0, "responses": 0}
 
     def count_request(_request) -> None:
@@ -103,8 +116,6 @@ def robust_attempt_single_prompt(
     page.on("response", count_response)
 
     try:
-        # The selected element is now focused by either fill() or the fallback.
-        # Keyboard submission avoids a second actionability wait on the locator.
         page.keyboard.press("Enter")
         result["submit_method"] = "focused_keyboard_enter"
         result["prompt_submitted"] = True
@@ -117,8 +128,6 @@ def robust_attempt_single_prompt(
             page.remove_listener("request", count_request)
             page.remove_listener("response", count_response)
         except Exception:
-            # Listener cleanup is hygiene only; the page/context is destroyed at
-            # the end of each target observation regardless.
             pass
 
     after = base.body_fingerprint(page)
@@ -129,17 +138,13 @@ def robust_attempt_single_prompt(
     result["body_changed"] = before["text_sha256"] != after["text_sha256"]
     result["body_length_delta"] = after["text_length"] - before["text_length"]
 
-    before_input = result.get("input_before_submit") or {}
     after_input = result.get("input_after_submit") or {}
-    input_cleared = bool(before_input.get("nonempty")) and (
+    input_cleared = bool(entered_state.get("nonempty")) and (
         not after_input.get("attached", True)
         or not after_input.get("nonempty", False)
+        or int(after_input.get("length") or 0) < max(2, entered_length // 4)
     )
     result["input_cleared_after_submit"] = input_cleared
-
-    # A body transition is already strong evidence of an interaction. When body
-    # text does not change, require both an input state transition and outbound
-    # network activity before claiming that a submission effect was observed.
     result["submission_effect_observed"] = bool(result["body_changed"]) or (
         input_cleared and post_submit_counts["requests"] > 0
     )
@@ -160,9 +165,6 @@ def robust_observe_target(browser, target, task, provenance, output_dir):
     return result
 
 
-# ``observe_hardened.main`` replaces the locator with the rep-2 DOM-consistent
-# implementation. Install the complementary interaction and classification
-# functions here before handing control to the hardened main path.
 base.attempt_single_prompt = robust_attempt_single_prompt
 base.observe_target = robust_observe_target
 
