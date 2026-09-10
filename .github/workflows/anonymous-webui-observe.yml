@@ -8,6 +8,9 @@ on:
         required: true
         default: "all"
         type: string
+  schedule:
+    # Low-frequency drift sensor. Non-round minute reduces shared-runner contention.
+    - cron: "17 5 * * 1,4"
   pull_request:
     paths:
       - ".github/workflows/anonymous-webui-observe.yml"
