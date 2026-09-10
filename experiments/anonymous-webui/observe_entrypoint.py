@@ -71,11 +71,6 @@ def robust_attempt_single_prompt(
     initial_state = _input_state(locator)
     result["input_initial"] = initial_state
 
-    # Normal Playwright fill is the preferred user-level mechanism. If its
-    # actionability model rejects an element the DOM independently proves visible
-    # and enabled, click the visible element's center with the browser mouse and
-    # type ordinary key events. This is still the same UI control: no hidden API,
-    # alternate selector, script-set value, or provider-specific bypass.
     try:
         locator.fill(prompt, timeout=2500)
         result["input_method"] = "playwright_fill"
@@ -171,6 +166,22 @@ def robust_observe_target(browser, target, task, provenance, output_dir):
         and prompt.get("submission_effect_observed")
     ):
         result["classification"] = "ANONYMOUS_SUBMISSION_OBSERVED"
+    elif (
+        result.get("classification") == "LANDING_ONLY"
+        and prompt.get("prompt_input_found")
+        and prompt.get("prompt_attempted")
+        and not prompt.get("prompt_submitted")
+        and (
+            prompt.get("input_fallback_error")
+            or prompt.get("input_fallback_error_type")
+            or prompt.get("input_error")
+            or prompt.get("fill_error_type")
+        )
+    ):
+        # A candidate UI control exists, but ordinary user-level interaction could
+        # not actuate it in this executor. Preserve that executor/surface fact
+        # instead of misreporting it as a generic landing-only observation.
+        result["classification"] = "CONTROL_SURFACE_UNACTIONABLE"
     return result
 
 
