@@ -34,7 +34,10 @@ The shared task is one deterministic prompt after a landing-state observation. R
 `.github/workflows/anonymous-webui-observe.yml` supports:
 
 - `pull_request` execution when this experiment changes, providing proving reps before merge;
-- `workflow_dispatch` after the workflow exists on the default branch, accepting `all` or one enabled target id.
+- `workflow_dispatch` on the default branch, accepting `all` or one enabled target id;
+- a low-frequency drift cadence at `17 05 UTC` each Monday and Thursday.
+
+The scheduled run executes only the enabled bounded cohort and exists to detect meaningful surface drift, not to consume quotas or create load. GitHub schedule delivery is best-effort and may be delayed; exact wall-clock timing is not part of the experiment contract.
 
 The workflow uses a standard `ubuntu-latest` GitHub-hosted runner, creates an isolated Python environment, installs pinned Playwright `1.62.0` and its corresponding Chromium build, executes the observer, writes a concise job summary, and uploads seven-day public-safe evidence artifacts.
 
