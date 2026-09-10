@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Bounded, secret-free anonymous WebUI observer for BrowserParity.
 
-This public experiment intentionally captures only public-safe metadata. It does
-not store cookies, authorization headers, request/response bodies, page text,
-credentials, or reusable session material. Login, region, and bot-challenge
-boundaries are observations to record, not obstacles to bypass.
+This public experiment captures only public-safe metadata. It does not retain
+cookies, authorization headers, request/response bodies, page text, credentials,
+screenshots, or reusable session material. Provider boundaries are observations
+to record, not obstacles to bypass.
 """
 
 from __future__ import annotations
@@ -25,7 +25,8 @@ from urllib.parse import urlsplit
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
-SCHEMA_VERSION = "browserparity.anonymous-webui.observation/v1"
+SCHEMA_VERSION = "browserparity.anonymous-webui.observation/v2"
+SUMMARY_SCHEMA_VERSION = "browserparity.anonymous-webui.summary/v2"
 
 
 def utc_now() -> str:
@@ -50,32 +51,58 @@ def sanitize_url(url: str) -> dict[str, Any]:
         return {"parse_error": True, "raw_sha256": sha256_text(url)}
 
 
+def _fetch_json(url: str) -> dict[str, Any]:
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "BrowserParity-anonymous-observer/2"},
+    )
+    with urllib.request.urlopen(req, timeout=8) as response:
+        return json.load(response)
+
+
 def fetch_runner_network_provenance() -> dict[str, Any]:
-    """Best-effort public egress provenance without retaining the raw IP."""
-    result: dict[str, Any] = {"source": "https://speed.cloudflare.com/meta", "ok": False}
-    try:
-        req = urllib.request.Request(
-            "https://speed.cloudflare.com/meta",
-            headers={"User-Agent": "BrowserParity-anonymous-observer/1"},
-        )
-        with urllib.request.urlopen(req, timeout=10) as response:
-            data = json.load(response)
-        client_ip = str(data.get("clientIp", ""))
-        result.update(
-            {
-                "ok": True,
-                "country": data.get("country"),
-                "region": data.get("region"),
-                "city": data.get("city"),
-                "colo": data.get("colo"),
-                "asn": data.get("asn"),
-                "as_organization": data.get("asOrganization"),
-                "client_ip_sha256": sha256_text(client_ip) if client_ip else None,
-            }
-        )
-    except Exception as exc:
-        result["error_type"] = type(exc).__name__
-    return result
+    """Best-effort public egress provenance; never retain the raw IP."""
+    attempts: list[dict[str, Any]] = []
+    providers = [
+        ("cloudflare", "https://speed.cloudflare.com/meta"),
+        ("ipapi", "https://ipapi.co/json/"),
+    ]
+    for name, url in providers:
+        try:
+            data = _fetch_json(url)
+            if name == "cloudflare":
+                ip = str(data.get("clientIp", ""))
+                record = {
+                    "source": name,
+                    "country": data.get("country"),
+                    "region": data.get("region"),
+                    "city": data.get("city"),
+                    "colo": data.get("colo"),
+                    "asn": data.get("asn"),
+                    "as_organization": data.get("asOrganization"),
+                }
+            else:
+                ip = str(data.get("ip", ""))
+                record = {
+                    "source": name,
+                    "country": data.get("country_code"),
+                    "region": data.get("region"),
+                    "city": data.get("city"),
+                    "colo": None,
+                    "asn": data.get("asn"),
+                    "as_organization": data.get("org"),
+                }
+            record.update(
+                {
+                    "ok": True,
+                    "client_ip_sha256": sha256_text(ip) if ip else None,
+                    "attempts": attempts,
+                }
+            )
+            return record
+        except Exception as exc:
+            attempts.append({"source": name, "error_type": type(exc).__name__})
+    return {"ok": False, "source": None, "attempts": attempts}
 
 
 def body_fingerprint(page) -> dict[str, Any]:
@@ -83,10 +110,7 @@ def body_fingerprint(page) -> dict[str, Any]:
         text = page.locator("body").inner_text(timeout=5000)
     except Exception:
         text = ""
-    return {
-        "text_length": len(text),
-        "text_sha256": sha256_text(text),
-    }
+    return {"text_length": len(text), "text_sha256": sha256_text(text)}
 
 
 def classify_boundary_text(page) -> dict[str, bool]:
@@ -118,21 +142,26 @@ def classify_boundary_text(page) -> dict[str, bool]:
 
 
 def safe_interactive_inventory(page) -> list[dict[str, Any]]:
-    """Public UI semantics only; no values or page-body text."""
+    """Public UI semantics only; no element values or page-body text."""
     try:
         return page.locator(
             'textarea,input,[contenteditable="true"],button,[role="button"],[role="textbox"]'
         ).evaluate_all(
-            """els => els.slice(0, 100).map(e => ({
-                tag: e.tagName.toLowerCase(),
-                role: e.getAttribute('role'),
-                type: e.getAttribute('type'),
-                ariaLabel: e.getAttribute('aria-label'),
-                placeholder: e.getAttribute('placeholder'),
-                contentEditable: e.getAttribute('contenteditable'),
-                disabled: !!e.disabled,
-                visible: !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length)
-            }))"""
+            """els => els.slice(0, 100).map(e => {
+                const r = e.getBoundingClientRect();
+                const s = getComputedStyle(e);
+                return {
+                    tag: e.tagName.toLowerCase(),
+                    role: e.getAttribute('role'),
+                    type: e.getAttribute('type'),
+                    ariaLabel: e.getAttribute('aria-label'),
+                    placeholder: e.getAttribute('placeholder'),
+                    contentEditable: e.getAttribute('contenteditable'),
+                    disabled: !!e.disabled,
+                    visible: r.width > 0 && r.height > 0 &&
+                             s.display !== 'none' && s.visibility !== 'hidden'
+                };
+            })"""
         )
     except Exception:
         return []
@@ -148,53 +177,96 @@ def storage_metadata(page) -> dict[str, Any]:
         )
         return {
             "local_storage_key_count": len(data.get("local", [])),
-            "local_storage_key_hashes": [sha256_text(k) for k in sorted(data.get("local", []))],
+            "local_storage_key_hashes": [
+                sha256_text(k) for k in sorted(data.get("local", []))
+            ],
             "session_storage_key_count": len(data.get("session", [])),
-            "session_storage_key_hashes": [sha256_text(k) for k in sorted(data.get("session", []))],
+            "session_storage_key_hashes": [
+                sha256_text(k) for k in sorted(data.get("session", []))
+            ],
         }
     except Exception as exc:
         return {"error_type": type(exc).__name__}
 
 
+def _candidate_metadata(candidate) -> dict[str, Any]:
+    return candidate.evaluate(
+        """e => {
+            const r = e.getBoundingClientRect();
+            const s = getComputedStyle(e);
+            return {
+                tag: e.tagName.toLowerCase(),
+                type: e.getAttribute('type'),
+                placeholder: (e.getAttribute('placeholder') || '').toLowerCase(),
+                ariaLabel: (e.getAttribute('aria-label') || '').toLowerCase(),
+                disabled: !!e.disabled,
+                visible: r.width > 0 && r.height > 0 &&
+                         s.display !== 'none' && s.visibility !== 'hidden' &&
+                         s.opacity !== '0'
+            };
+        }"""
+    )
+
+
 def find_prompt_input(page):
+    """Find a non-auth text input using DOM-computed visibility, not Playwright heuristics."""
     selectors = [
         'textarea:not([disabled])',
         '[role="textbox"][contenteditable="true"]',
         '[contenteditable="true"]',
         'input[type="text"]:not([disabled])',
     ]
+    auth_terms = ("email", "username", "password", "phone", "verification", "code")
+    diagnostics: list[dict[str, Any]] = []
     for selector in selectors:
         locator = page.locator(selector)
         try:
-            count = min(locator.count(), 12)
-            for index in range(count):
-                candidate = locator.nth(index)
-                if not candidate.is_visible(timeout=500):
-                    continue
-                meta = candidate.evaluate(
-                    """e => ({
-                        tag: e.tagName.toLowerCase(),
-                        type: e.getAttribute('type'),
-                        placeholder: (e.getAttribute('placeholder') || '').toLowerCase(),
-                        ariaLabel: (e.getAttribute('aria-label') || '').toLowerCase()
-                    })"""
-                )
-                joined = f"{meta.get('placeholder', '')} {meta.get('ariaLabel', '')}"
-                if any(term in joined for term in ("email", "username", "password", "phone")):
-                    continue
-                return candidate, selector, meta
-        except Exception:
+            count = min(locator.count(), 20)
+        except Exception as exc:
+            diagnostics.append({"selector": selector, "error_type": type(exc).__name__})
             continue
-    return None, None, None
+        for index in range(count):
+            candidate = locator.nth(index)
+            try:
+                meta = _candidate_metadata(candidate)
+                diagnostics.append(
+                    {
+                        "selector": selector,
+                        "index": index,
+                        "visible": meta.get("visible"),
+                        "disabled": meta.get("disabled"),
+                    }
+                )
+                if not meta.get("visible") or meta.get("disabled"):
+                    continue
+                joined = f"{meta.get('placeholder', '')} {meta.get('ariaLabel', '')}"
+                if any(term in joined for term in auth_terms):
+                    continue
+                return candidate, selector, meta, diagnostics
+            except Exception as exc:
+                diagnostics.append(
+                    {
+                        "selector": selector,
+                        "index": index,
+                        "error_type": type(exc).__name__,
+                    }
+                )
+    return None, None, None, diagnostics
 
 
-def attempt_single_prompt(page, prompt: str, post_submit_seconds: int, network_events: list[dict[str, Any]]) -> dict[str, Any]:
+def attempt_single_prompt(
+    page,
+    prompt: str,
+    post_submit_seconds: int,
+    network_events: list[dict[str, Any]],
+) -> dict[str, Any]:
     result: dict[str, Any] = {
         "prompt_attempted": False,
         "prompt_submitted": False,
         "prompt_input_found": False,
     }
-    locator, selector, meta = find_prompt_input(page)
+    locator, selector, meta, diagnostics = find_prompt_input(page)
+    result["prompt_locator_diagnostics"] = diagnostics
     if locator is None:
         return result
 
@@ -230,7 +302,29 @@ def attempt_single_prompt(page, prompt: str, post_submit_seconds: int, network_e
     return result
 
 
-def observe_target(browser, target: dict[str, Any], task: dict[str, Any], provenance: dict[str, Any], output_dir: Path) -> dict[str, Any]:
+def classify_initial_http(status: int | None) -> str | None:
+    if status is None or status < 400:
+        return None
+    if status == 401:
+        return "HTTP_UNAUTHORIZED_401"
+    if status == 403:
+        return "HTTP_BLOCKED_403"
+    if status == 429:
+        return "HTTP_RATE_LIMITED_429"
+    if status == 451:
+        return "HTTP_UNAVAILABLE_LEGAL_451"
+    if 400 <= status < 500:
+        return f"HTTP_CLIENT_ERROR_{status}"
+    return f"HTTP_SERVER_ERROR_{status}"
+
+
+def observe_target(
+    browser,
+    target: dict[str, Any],
+    task: dict[str, Any],
+    provenance: dict[str, Any],
+    output_dir: Path,
+) -> dict[str, Any]:
     started = utc_now()
     network_events: list[dict[str, Any]] = []
     max_events = int(task.get("max_network_events", 300))
@@ -280,26 +374,36 @@ def observe_target(browser, target: dict[str, Any], task: dict[str, Any], proven
     }
 
     try:
-        response = page.goto(target["url"], wait_until="domcontentloaded", timeout=45000)
+        response = page.goto(
+            target["url"], wait_until="domcontentloaded", timeout=45000
+        )
         time.sleep(int(task.get("landing_settle_seconds", 4)))
-        landing = body_fingerprint(page)
+        initial_status = response.status if response else None
+        http_class = classify_initial_http(initial_status)
         boundary_before = classify_boundary_text(page)
         result.update(
             {
                 "navigation": {
                     "ok": True,
-                    "initial_status": response.status if response else None,
+                    "initial_status": initial_status,
                     "final_url": sanitize_url(page.url),
                     "title_sha256": sha256_text(page.title()),
                 },
-                "landing": landing,
+                "landing": body_fingerprint(page),
                 "boundary_before_prompt": boundary_before,
                 "interactive_inventory": safe_interactive_inventory(page),
                 "storage": storage_metadata(page),
             }
         )
 
-        if boundary_before["challenge_text_present"]:
+        if http_class is not None:
+            prompt_result = {
+                "prompt_attempted": False,
+                "prompt_submitted": False,
+                "prompt_input_found": False,
+                "skipped_reason": "initial_http_boundary",
+            }
+        elif boundary_before["challenge_text_present"]:
             prompt_result = {
                 "prompt_attempted": False,
                 "prompt_submitted": False,
@@ -317,22 +421,41 @@ def observe_target(browser, target: dict[str, Any], task: dict[str, Any], proven
         boundary_after = classify_boundary_text(page)
         result["boundary_after_prompt"] = boundary_after
 
-        if boundary_after["challenge_text_present"]:
+        if http_class is not None:
+            classification = http_class
+        elif boundary_after["challenge_text_present"]:
             classification = "BOT_CHALLENGE"
-        elif prompt_result.get("prompt_submitted") and prompt_result.get("body_changed"):
+        elif prompt_result.get("prompt_submitted") and prompt_result.get(
+            "body_changed"
+        ):
             classification = "ANONYMOUS_INTERACTION_OBSERVED"
         elif prompt_result.get("prompt_submitted"):
             classification = "INTERACTION_UNCONFIRMED"
-        elif boundary_after["login_text_present"] and not prompt_result.get("prompt_input_found"):
+        elif boundary_after["login_text_present"] and not prompt_result.get(
+            "prompt_input_found"
+        ):
             classification = "LOGIN_REQUIRED_OR_GATED"
         else:
             classification = "LANDING_ONLY"
         result["classification"] = classification
 
     except PlaywrightTimeoutError:
-        result.update({"classification": "NAVIGATION_TIMEOUT", "navigation": {"ok": False, "error_type": "PlaywrightTimeoutError"}})
+        result.update(
+            {
+                "classification": "NAVIGATION_TIMEOUT",
+                "navigation": {
+                    "ok": False,
+                    "error_type": "PlaywrightTimeoutError",
+                },
+            }
+        )
     except Exception as exc:
-        result.update({"classification": "ERROR", "navigation": {"ok": False, "error_type": type(exc).__name__}})
+        result.update(
+            {
+                "classification": "ERROR",
+                "navigation": {"ok": False, "error_type": type(exc).__name__},
+            }
+        )
     finally:
         result["network_events"] = network_events
         result["network_event_count"] = len(network_events)
@@ -345,13 +468,20 @@ def observe_target(browser, target: dict[str, Any], task: dict[str, Any], proven
     return result
 
 
-def write_summary(results: list[dict[str, Any]], output_dir: Path, provenance: dict[str, Any]) -> None:
+def write_summary(
+    results: list[dict[str, Any]],
+    output_dir: Path,
+    provenance: dict[str, Any],
+    browser_version: str,
+) -> None:
     summary = {
-        "schema_version": "browserparity.anonymous-webui.summary/v1",
+        "schema_version": SUMMARY_SCHEMA_VERSION,
         "generated_at": utc_now(),
         "runner": {
             "os": platform.platform(),
             "python": sys.version.split()[0],
+            "browser_engine": "chromium",
+            "browser_version": browser_version,
             "github_run_id": os.getenv("GITHUB_RUN_ID"),
             "github_run_attempt": os.getenv("GITHUB_RUN_ATTEMPT"),
             "github_sha": os.getenv("GITHUB_SHA"),
@@ -363,6 +493,7 @@ def write_summary(results: list[dict[str, Any]], output_dir: Path, provenance: d
                 "target_id": item.get("target_id"),
                 "provider": item.get("provider"),
                 "classification": item.get("classification"),
+                "initial_status": (item.get("navigation") or {}).get("initial_status"),
                 "network_event_count": item.get("network_event_count"),
             }
             for item in results
@@ -375,17 +506,30 @@ def write_summary(results: list[dict[str, Any]], output_dir: Path, provenance: d
         "# BrowserParity anonymous WebUI observation",
         "",
         f"Generated: `{summary['generated_at']}`",
-        f"Runner country: `{provenance.get('country') or 'unknown'}`; colo: `{provenance.get('colo') or 'unknown'}`; ASN: `{provenance.get('asn') or 'unknown'}`",
+        f"Chromium: `{browser_version}`",
+        (
+            f"Runner country: `{provenance.get('country') or 'unknown'}`; "
+            f"region: `{provenance.get('region') or 'unknown'}`; "
+            f"ASN: `{provenance.get('asn') or 'unknown'}`"
+        ),
         "",
-        "| Target | Classification | Network events |",
-        "|---|---|---:|",
+        "| Target | Classification | HTTP | Network events |",
+        "|---|---|---:|---:|",
     ]
     for item in summary["results"]:
-        lines.append(f"| {item['target_id']} | {item['classification']} | {item['network_event_count'] or 0} |")
+        lines.append(
+            f"| {item['target_id']} | {item['classification']} | "
+            f"{item['initial_status'] if item['initial_status'] is not None else ''} | "
+            f"{item['network_event_count'] or 0} |"
+        )
     lines.extend(
         [
             "",
-            "Public-safe first slice: no cookies, authorization headers, request/response bodies, page text, credentials, screenshots, or reusable session material are retained.",
+            (
+                "Public-safe slice: no cookies, authorization headers, "
+                "request/response bodies, page text, credentials, screenshots, "
+                "or reusable session material are retained."
+            ),
         ]
     )
     (output_dir / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -402,7 +546,9 @@ def main() -> int:
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
     task = manifest["task"]
-    targets = [target for target in manifest["targets"] if target.get("enabled", False)]
+    targets = [
+        target for target in manifest["targets"] if target.get("enabled", False)
+    ]
     if args.target != "all":
         targets = [target for target in targets if target["id"] == args.target]
         if not targets:
@@ -412,13 +558,16 @@ def main() -> int:
     results: list[dict[str, Any]] = []
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
+        browser_version = browser.version
         try:
             for target in targets:
-                results.append(observe_target(browser, target, task, provenance, output_dir))
+                results.append(
+                    observe_target(browser, target, task, provenance, output_dir)
+                )
         finally:
             browser.close()
 
-    write_summary(results, output_dir, provenance)
+    write_summary(results, output_dir, provenance, browser_version)
     print((output_dir / "summary.md").read_text(encoding="utf-8"))
     return 0
 
