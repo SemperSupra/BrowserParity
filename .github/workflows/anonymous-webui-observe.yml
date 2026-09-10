@@ -1,0 +1,71 @@
+name: Anonymous WebUI Observe
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Enabled target id, or all"
+        required: true
+        default: "all"
+        type: string
+  pull_request:
+    paths:
+      - ".github/workflows/anonymous-webui-observe.yml"
+      - "experiments/anonymous-webui/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: anonymous-webui-observe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TARGET: ${{ github.event_name == 'workflow_dispatch' && inputs.target || 'all' }}
+      PYTHONUNBUFFERED: "1"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+
+      - name: Create isolated Python environment
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/python -m pip install "playwright==1.62.0"
+
+      - name: Install pinned Chromium build and OS dependencies
+        run: .venv/bin/python -m playwright install --with-deps chromium
+
+      - name: Run bounded anonymous observations
+        run: |
+          .venv/bin/python experiments/anonymous-webui/observe.py \
+            --manifest experiments/anonymous-webui/targets.json \
+            --output artifacts/anonymous-webui \
+            --target "$TARGET"
+
+      - name: Publish concise run summary
+        if: always()
+        run: |
+          if [ -f artifacts/anonymous-webui/summary.md ]; then
+            cat artifacts/anonymous-webui/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "# BrowserParity anonymous WebUI observation" >> "$GITHUB_STEP_SUMMARY"
+            echo "Observer exited before producing summary.md." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload public-safe evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: anonymous-webui-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/anonymous-webui/
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 9
