@@ -166,10 +166,10 @@
         { title: "Webmail: Inbox", category: "Email", url: "https://webmail.apps.mil/mail/inbox", shortcut: "Alt+M", icon: "📬" },
         { title: "Webmail: Calendar Week View", category: "Schedule", url: "https://webmail.apps.mil/calendar/view/week", shortcut: "Alt+C", icon: "📅" },
         { title: "Webmail: Contacts & People", category: "Directory", url: "https://webmail.apps.mil/people/", icon: "👥" },
-        { title: "SharePoint: On-Call Schedule (Current Week)", category: "Operations", url: "https://dod365.sharepoint-mil.us/sites/EUCOM-ELITE-OPS/Lists/OnCall%20Schedule/On%20Call%20Current%20Week.aspx", shortcut: "Alt+S", icon: "📊" },
-        { title: "SharePoint: EUCOM JOC Systems Documents", category: "Files", url: "https://dod365.sharepoint-mil.us/teams/EUCOM-joc-systems/Shared Documents", icon: "📁" },
+        { title: "SharePoint: Operations Schedule (configure locally)", category: "Operations", url: null, shortcut: "Alt+S", icon: "📊" },
+        { title: "SharePoint: Systems Documents (configure locally)", category: "Files", url: null, icon: "📁" },
         { title: "OneDrive: My Personal Files", category: "Files", url: "https://dod365-my.sharepoint-mil.us/my", shortcut: "Alt+D", icon: "☁️" },
-        { title: "Planner: SOP Plan Task Board", category: "Tasks", url: "https://tasks.osi.apps.mil/dod365.onmicrosoft.us/en-US/Home/Planner/#/plantaskboard?groupId=88e79079-60a9-4f16-af20-7d983e71f241&planId=ny5reUBfnUu8ejIehjXeoowADbPQ", shortcut: "Alt+T", icon: "📋" },
+        { title: "Planner: Task Board (configure locally)", category: "Tasks", url: null, shortcut: "Alt+T", icon: "📋" },
         { title: "Planner: Assigned to Me Tasks", category: "Tasks", url: "https://tasks.osi.apps.mil/dod365.onmicrosoft.us/en-US/Home/Planner/#/userboard", icon: "👤" },
         { title: "Teams: Chats & Channels", category: "Collaboration", url: "https://dod.teams.microsoft.us/v2", icon: "💬" },
         { title: "M365: Copilot Enterprise Search", category: "Search", url: "https://www.ohome.apps.mil/search/", icon: "🤖" },
@@ -181,6 +181,18 @@
     // ----------------------------------------------------
     // 3. RENDER COMMAND PALETTE (100% CSP SAFE - PURE DOM)
     // ----------------------------------------------------
+    // No operational/internal destination URLs are published. Restricted entries
+    // intentionally require a site-local customization outside this repository.
+    function navigateToDestination(destination) {
+        if (!destination || typeof destination.url !== 'string' ||
+            !/^https:\/\//i.test(destination.url)) {
+            window.alert('Destination not configured. Use an approved local userscript configuration.');
+            return false;
+        }
+        window.location.href = destination.url;
+        return true;
+    }
+
     let paletteOpen = false;
     let selectedIndex = 0;
     let filteredItems = [...DESTINATIONS];
@@ -314,7 +326,7 @@
                 row.appendChild(sSpan);
             }
 
-            row.addEventListener('click', () => { window.location.href = item.url; });
+            row.addEventListener('click', () => { navigateToDestination(item); });
             container.appendChild(row);
         });
     }
@@ -348,19 +360,19 @@
             } else if (e.key === 'Enter') {
                 e.preventDefault();
                 if (filteredItems[selectedIndex]) {
-                    window.location.href = filteredItems[selectedIndex].url;
+                    navigateToDestination(filteredItems[selectedIndex]);
                 }
             }
             return;
         }
 
         if (e.altKey && !e.ctrlKey && !e.shiftKey) {
-            const key = e.key.toLowerCase();
-            if (key === 'm') { e.preventDefault(); window.location.href = "https://webmail.apps.mil/mail/inbox"; }
-            else if (key === 'c') { e.preventDefault(); window.location.href = "https://webmail.apps.mil/calendar/view/week"; }
-            else if (key === 't') { e.preventDefault(); window.location.href = "https://tasks.osi.apps.mil/dod365.onmicrosoft.us/en-US/Home/Planner/"; }
-            else if (key === 's') { e.preventDefault(); window.location.href = "https://dod365.sharepoint-mil.us/sites/EUCOM-ELITE-OPS/Lists/OnCall%20Schedule/On%20Call%20Current%20Week.aspx"; }
-            else if (key === 'd') { e.preventDefault(); window.location.href = "https://dod365-my.sharepoint-mil.us/my"; }
+            const shortcut = 'Alt+' + e.key.toUpperCase();
+            const target = DESTINATIONS.find(item => item.shortcut === shortcut);
+            if (target) {
+                e.preventDefault();
+                navigateToDestination(target);
+            }
         }
     });
 
