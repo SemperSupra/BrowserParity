@@ -238,4 +238,4 @@ BrowserParity/
 
 ## 📜 License
 
-This project is personal open-source software licensed under the [MIT License](LICENSE).
+The original code in this repository is made available under the [PolyForm Noncommercial License 1.0.0](LICENSE) (`SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0`). Noncommercial use, modification, and distribution are governed by those terms; commercial use requires a separate license from the rights holder. Third-party components retain their own license terms and notices. Permissions previously granted for earlier MIT-licensed distributions are not revoked by this change.
