@@ -19,9 +19,12 @@ on:
 permissions:
   contents: read
 
+# Only superseded PR/scheduled observations may cancel one another.
+# Each manual qualification receives a unique group so it cannot replace
+# another pending operator-triggered run or interrupt the scheduled sensor.
 concurrency:
-  group: anonymous-webui-observe-${{ github.ref }}
-  cancel-in-progress: true
+  group: anonymous-webui-observe-${{ github.event_name }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 jobs:
   observe:
