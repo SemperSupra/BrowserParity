@@ -1,0 +1,100 @@
+name: Public Synthetic Authentication Primitives
+
+on:
+  push:
+    branches:
+      - "research/public-auth-simulation-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synthetic-auth-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  virtual-webauthn:
+    name: Playwright virtual passkeys (Chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Prepare pinned browser and test-only virtual credential
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check "playwright==1.62.0"
+          .venv/bin/python -m playwright install --with-deps chromium
+      - name: Assert synthetic authenticator browser-context isolation
+        run: |
+          .venv/bin/python - <<'PY'
+          from playwright.sync_api import sync_playwright
+          with sync_playwright() as p:
+              browser = p.chromium.launch()
+              a = browser.new_context()
+              b = browser.new_context()
+              creds_a = a.credentials
+              creds_b = b.credentials
+              print("virtual_credentials_api_present", bool(creds_a))
+              creds_a.create("localhost")
+              assert len(creds_a.get()) == 1, "expected one synthetic test credential"
+              assert len(creds_b.get()) == 0, "credential leaked into a distinct context"
+              creds_a.install()
+              creds_a.clear()
+              assert len(creds_a.get()) == 0, "clear failed"
+              a.close()
+              b.close()
+              browser.close()
+          print("PASS: virtual authenticator lifecycle and browser-context separation")
+          PY
+      - name: Bound claim
+        if: always()
+        run: echo "Evidence: SYNTHETIC_VIRTUAL_WEBAUTHN_API, not real MFA/physical presence/passkey provider HIL." >> "$GITHUB_STEP_SUMMARY"
+
+  software-pkcs11:
+    name: SoftHSM test-only PKCS#11 sign and deny private export
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install system PKCS11 test tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq softhsm2 opensc openssl
+      - name: Create isolated ephemeral software token and exercise PKCS11
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/tokens"
+          {
+            echo "directories.tokendir = $RUNNER_TEMP/tokens"
+            echo "objectstore.backend = file"
+            echo "log.level = ERROR"
+          } > "$RUNNER_TEMP/softhsm2.conf"
+          export SOFTHSM2_CONF="$RUNNER_TEMP/softhsm2.conf"
+          softhsm2-util --init-token --free --label BP_PUBLIC_SYNTHETIC --so-pin 12345678 --pin 1234
+          MODULE="$(find /usr/lib -name libsofthsm2.so -print -quit)"
+          test -f "$MODULE"
+          printf 'browserparity-public-test-only\n' > "$RUNNER_TEMP/message.txt"
+          pkcs11-tool --module "$MODULE" --login --pin 1234 \
+            --keypairgen --key-type rsa:2048 --label BP_TEST --id 01
+          pkcs11-tool --module "$MODULE" --login --pin 1234 \
+            --sign --mechanism SHA256-RSA-PKCS --id 01 \
+            --input-file "$RUNNER_TEMP/message.txt" --output-file "$RUNNER_TEMP/signature.bin"
+          pkcs11-tool --module "$MODULE" --login --pin 1234 \
+            --read-object --type pubkey --id 01 --output-file "$RUNNER_TEMP/public.der"
+          openssl pkey -pubin -inform DER -in "$RUNNER_TEMP/public.der" -out "$RUNNER_TEMP/public.pem"
+          openssl dgst -sha256 -verify "$RUNNER_TEMP/public.pem" \
+            -signature "$RUNNER_TEMP/signature.bin" "$RUNNER_TEMP/message.txt"
+          if pkcs11-tool --module "$MODULE" --login --pin 1234 \
+            --read-object --type privkey --id 01 --output-file "$RUNNER_TEMP/private.der"; then
+            echo "ERROR: synthetic token allowed private key read" >&2
+            exit 1
+          fi
+          echo "PASS: software test token signature verified, private object not read." >> "$GITHUB_STEP_SUMMARY"
+      - name: Bound claim
+        if: always()
+        run: echo "Evidence: SOFTWARE_PKCS11_ONLY. Not genuine CAC, PIN pad, card removal, hardware nonextractability, DoD PKI or protected provider HIL." >> "$GITHUB_STEP_SUMMARY"
