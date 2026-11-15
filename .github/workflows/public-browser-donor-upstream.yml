@@ -58,7 +58,7 @@ jobs:
         if: matrix.id == 'browsermcp'
         run: |
           cd vendor
-          corepack pnpm --filter @browsermcp/mcp exec playwright install --with-deps chromium
+          node packages/mcp/node_modules/playwright-core/cli.js install --with-deps chromium
       - name: Execute upstream-maintained tests
         env:
           SCRIPT: ${{ matrix.script }}
