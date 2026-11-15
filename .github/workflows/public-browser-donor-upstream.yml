@@ -55,7 +55,12 @@ jobs:
           echo "Vendor: $UPSTREAM @ $PIN" >> "$GITHUB_STEP_SUMMARY"
       - name: Install package manager and upstream dependencies
         run: |
-          npm install --global corepack@0.34.5
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            # Ephemeral hosted Windows image has pre-existing Yarn shims.
+            npm install --global --force corepack@0.34.5
+          else
+            npm install --global corepack@0.34.5
+          fi
           corepack enable
           cd vendor
           corepack pnpm install --frozen-lockfile
