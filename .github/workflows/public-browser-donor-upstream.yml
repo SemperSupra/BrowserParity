@@ -54,6 +54,11 @@ jobs:
           corepack enable
           cd vendor
           corepack pnpm install --frozen-lockfile
+      - name: Install BrowserMCP pinned Chromium dependency
+        if: matrix.id == 'browsermcp'
+        run: |
+          cd vendor
+          corepack pnpm --filter @browsermcp/mcp exec playwright install --with-deps chromium
       - name: Execute upstream-maintained tests
         env:
           SCRIPT: ${{ matrix.script }}
@@ -70,6 +75,11 @@ jobs:
     name: OpenBrowser pinned Python upstream tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      OPENBROWSER_BROKER_ROOT: ${{ runner.temp }}/openbrowser/root
+      OPENBROWSER_BROWSER_POOL_DIR: ${{ runner.temp }}/openbrowser/pool
+      OPENBROWSER_AUTHENTICATED_PROFILE_DIR: ${{ runner.temp }}/openbrowser/authenticated
+      OPENBROWSER_AUTH_PORTAL_AUTOSTART: "0"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
