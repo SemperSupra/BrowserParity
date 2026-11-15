@@ -1,0 +1,97 @@
+name: Public Browser Controller Upstream Qualification
+
+on:
+  push:
+    branches:
+      - "research/public-browser-donor-upstream-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-browser-donor-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typescript-donors:
+    name: Upstream source and native tests (${{ matrix.id }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: panerelay
+            repository: F-loat/panerelay
+            commit: 852dcd8208f58a885187329c185df9167d45c9c3
+            script: check
+          - id: browsermcp
+            repository: BrowserMCP/mcp
+            commit: a51ddc4ee2210b102468a52b114e6f00e5bd206e
+            script: test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+      - name: Acquire exact public upstream commit without private credentials
+        env:
+          UPSTREAM: ${{ matrix.repository }}
+          PIN: ${{ matrix.commit }}
+        run: |
+          set -euo pipefail
+          git init vendor
+          git -C vendor remote add origin "https://github.com/$UPSTREAM.git"
+          git -C vendor fetch --no-tags --depth=1 origin "$PIN"
+          git -C vendor checkout --detach FETCH_HEAD
+          test "$(git -C vendor rev-parse HEAD)" = "$PIN"
+          echo "Vendor: $UPSTREAM @ $PIN" >> "$GITHUB_STEP_SUMMARY"
+      - name: Install package manager and upstream dependencies
+        run: |
+          npm install --global corepack@0.34.5
+          corepack enable
+          cd vendor
+          corepack pnpm install --frozen-lockfile
+      - name: Execute upstream-maintained tests
+        env:
+          SCRIPT: ${{ matrix.script }}
+        run: |
+          set -euo pipefail
+          cd vendor
+          corepack pnpm run "$SCRIPT"
+      - name: Evidence classification
+        if: always()
+        run: |
+          echo "Grade: UPSTREAM_NATIVE_TESTS_ONLY. Does NOT qualify BrowserParity integration, selected-tab scope, human consent, provider HIL, or replacement." >> "$GITHUB_STEP_SUMMARY"
+
+  openbrowser:
+    name: OpenBrowser pinned Python upstream tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Acquire exact public upstream commit
+        run: |
+          set -euo pipefail
+          git init vendor
+          git -C vendor remote add origin https://github.com/floomhq/openbrowser.git
+          git -C vendor fetch --no-tags --depth=1 origin 5680ac6fbe1334a20d87a02d1087c95fc3e20a9c
+          git -C vendor checkout --detach FETCH_HEAD
+          test "$(git -C vendor rev-parse HEAD)" = "5680ac6fbe1334a20d87a02d1087c95fc3e20a9c"
+      - name: Install fresh environment
+        run: |
+          python3 --version
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check -e ./vendor pytest
+      - name: Execute upstream-maintained tests
+        run: |
+          cd vendor
+          "$GITHUB_WORKSPACE/.venv/bin/python" -m pytest -q
+      - name: Evidence classification
+        if: always()
+        run: |
+          echo "Grade: UPSTREAM_NATIVE_TESTS_ONLY at floomhq/openbrowser 5680ac6fbe1334a20d87a02d1087c95fc3e20a9c. No real identity, user browser, secret, CAC, browser-control approval or replacement claim." >> "$GITHUB_STEP_SUMMARY"
