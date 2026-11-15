@@ -50,7 +50,8 @@ jobs:
           PY
       - name: Bound claim
         if: always()
-        run: echo "Evidence: SYNTHETIC_VIRTUAL_WEBAUTHN_API, not real MFA/physical presence/passkey provider HIL." >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo "Evidence: SYNTHETIC_VIRTUAL_WEBAUTHN_API, not real MFA/physical presence/passkey provider HIL." >> "$GITHUB_STEP_SUMMARY"
 
   software-pkcs11:
     name: SoftHSM test-only PKCS#11 sign and deny private export
@@ -97,4 +98,5 @@ jobs:
           echo "PASS: software test token signature verified, private object not read." >> "$GITHUB_STEP_SUMMARY"
       - name: Bound claim
         if: always()
-        run: echo "Evidence: SOFTWARE_PKCS11_ONLY. Not genuine CAC, PIN pad, card removal, hardware nonextractability, DoD PKI or protected provider HIL." >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo "Evidence: SOFTWARE_PKCS11_ONLY. Not genuine CAC, PIN pad, card removal, hardware nonextractability, DoD PKI or protected provider HIL." >> "$GITHUB_STEP_SUMMARY"
