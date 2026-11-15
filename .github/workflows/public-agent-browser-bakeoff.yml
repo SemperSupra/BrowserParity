@@ -1,0 +1,75 @@
+name: Public Browser Agent Donor Synthetic Bake-Off
+
+on:
+  push:
+    branches:
+      - "research/public-agent-browser-bakeoff-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: browser-agent-bakeoff-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  official-violentmonkey-grant:
+    name: Official Violentmonkey pinned grant source
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch pinned upstream source and verify its Git blob identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 2 --max-time 40 \
+            "https://raw.githubusercontent.com/violentmonkey/violentmonkey/76c895990b9bce4fc7aa64114f729e6517d561af/src/background/utils/mcp-grants.js" \
+            --output "$RUNNER_TEMP/mcp-grants.js"
+          actual="$(git hash-object "$RUNNER_TEMP/mcp-grants.js")"
+          test "$actual" = "f614e23dcb04ddcdf3d3dc1e0c2a2ab082b47574"
+          echo "VM_GRANT_SOURCE=$RUNNER_TEMP/mcp-grants.js" >> "$GITHUB_ENV"
+          echo "Verified upstream Violentmonkey blob: $actual" >> "$GITHUB_STEP_SUMMARY"
+      - name: Execute isolated upstream grant API boundary probes
+        run: node --test experiments/public-agent-browser-bakeoff/vm-grant.test.mjs
+      - name: Record evidence boundary
+        if: always()
+        run: |
+          {
+            echo ""
+            echo "Evidence: PUBLIC_UPSTREAM_SOURCE_PROBE, not real extension/agent integration."
+            echo "The upstream grant API itself is keyed by tab ID; broader origin, effect and session authority is NOT_VERIFIED."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  synthetic-browser:
+    name: Synthetic browser and session fixture (${{ matrix.engine }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [chromium, firefox, webkit]
+    env:
+      BROWSER_ENGINE: ${{ matrix.engine }}
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Playwright without real credentials
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check "playwright==1.62.0"
+          .venv/bin/python -m playwright install --with-deps ${{ matrix.engine }}
+      - name: Test owned local-only tabs, synthetic login and revocation oracle
+        run: .venv/bin/python experiments/public-agent-browser-bakeoff/synthetic_browser.py
+      - name: Record evidence boundary
+        if: always()
+        run: |
+          {
+            echo "Engine: ${{ matrix.engine }}"
+            echo "Evidence: SYNTHETIC_BROWSER, no vendor MCP/extension, real login, card, PIN or HIL."
+            echo "Fixture owner: 127.0.0.1-only; isolated browser contexts and simulated grants."
+          } >> "$GITHUB_STEP_SUMMARY"
