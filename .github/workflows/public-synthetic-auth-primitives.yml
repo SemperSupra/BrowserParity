@@ -37,12 +37,12 @@ jobs:
               creds_a = a.credentials
               creds_b = b.credentials
               print("virtual_credentials_api_present", bool(creds_a))
-              creds_a.create("localhost")
+              credential = creds_a.create("localhost")
               assert len(creds_a.get()) == 1, "expected one synthetic test credential"
               assert len(creds_b.get()) == 0, "credential leaked into a distinct context"
               creds_a.install()
-              creds_a.clear()
-              assert len(creds_a.get()) == 0, "clear failed"
+              creds_a.delete(credential["id"])
+              assert len(creds_a.get()) == 0, "credential delete failed"
               a.close()
               b.close()
               browser.close()
@@ -90,12 +90,17 @@ jobs:
           openssl pkey -pubin -inform DER -in "$RUNNER_TEMP/public.der" -out "$RUNNER_TEMP/public.pem"
           openssl dgst -sha256 -verify "$RUNNER_TEMP/public.pem" \
             -signature "$RUNNER_TEMP/signature.bin" "$RUNNER_TEMP/message.txt"
-          if pkcs11-tool --module "$MODULE" --login --pin 1234 \
-            --read-object --type privkey --id 01 --output-file "$RUNNER_TEMP/private.der"; then
-            echo "ERROR: synthetic token allowed private key read" >&2
+          # pkcs11-tool returns exit code zero for unsupported private-key reads.
+          # Test for actual written bytes; never equate this with hardware assurance.
+          pkcs11-tool --module "$MODULE" --login --pin 1234 \
+            --read-object --type privkey --id 01 --output-file "$RUNNER_TEMP/private.der" \
+            > "$RUNNER_TEMP/private-read.log" 2>&1 || true
+          if [ -s "$RUNNER_TEMP/private.der" ]; then
+            echo "ERROR: unexpected private-key bytes written" >&2
             exit 1
           fi
-          echo "PASS: software test token signature verified, private object not read." >> "$GITHUB_STEP_SUMMARY"
+          grep -q 'reading private keys not (yet) supported' "$RUNNER_TEMP/private-read.log"
+          echo "PASS: software RSA signature verified; private read unsupported by pkcs11-tool." >> "$GITHUB_STEP_SUMMARY"
       - name: Bound claim
         if: always()
         run: |
