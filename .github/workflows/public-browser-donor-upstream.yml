@@ -82,11 +82,14 @@ jobs:
           git -C vendor fetch --no-tags --depth=1 origin 5680ac6fbe1334a20d87a02d1087c95fc3e20a9c
           git -C vendor checkout --detach FETCH_HEAD
           test "$(git -C vendor rev-parse HEAD)" = "5680ac6fbe1334a20d87a02d1087c95fc3e20a9c"
-      - name: Install fresh environment
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+      - name: Install upstream-compatible v1 MCP environment
         run: |
           python3 --version
           python3 -m venv .venv
-          .venv/bin/python -m pip install --disable-pip-version-check -e ./vendor pytest
+          .venv/bin/python -m pip install --disable-pip-version-check -e ./vendor "mcp>=1,<2" pytest
       - name: Execute upstream-maintained tests
         run: |
           cd vendor
