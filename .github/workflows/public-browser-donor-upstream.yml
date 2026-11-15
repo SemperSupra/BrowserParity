@@ -14,18 +14,23 @@ concurrency:
 
 jobs:
   typescript-donors:
-    name: Upstream source and native tests (${{ matrix.id }})
-    runs-on: ubuntu-latest
+    name: Upstream source and native tests (${{ matrix.id }} / ${{ matrix.runner }})
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         include:
           - id: panerelay
+            runner: ubuntu-latest
             repository: F-loat/panerelay
             commit: 852dcd8208f58a885187329c185df9167d45c9c3
             script: check
           - id: browsermcp
+            runner: windows-latest
             repository: BrowserMCP/mcp
             commit: a51ddc4ee2210b102468a52b114e6f00e5bd206e
             script: test
