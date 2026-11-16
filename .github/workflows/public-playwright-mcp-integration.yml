@@ -1,0 +1,61 @@
+name: Public Playwright MCP Actual Tool Integration
+
+on:
+  push:
+    branches:
+      - "research/public-playwright-mcp-integration-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bp-playwright-mcp-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actual-mcp-synthetic:
+    name: Actual MCP tool calls in disposable Chromium
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      DONOR_SHA: 78eca85361efb545a4c0f59b6140aef0721c5412
+      NPM_CONFIG_FUND: "false"
+      NPM_CONFIG_AUDIT: "false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+      - name: Fetch exact public upstream source revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init vendor
+          git -C vendor remote add origin https://github.com/microsoft/playwright-mcp.git
+          git -C vendor fetch --no-tags --depth=1 origin "$DONOR_SHA"
+          git -C vendor checkout --detach FETCH_HEAD
+          test "$(git -C vendor rev-parse HEAD)" = "$DONOR_SHA"
+          echo "Pinned upstream Git SHA $DONOR_SHA" >> "$GITHUB_STEP_SUMMARY"
+      - name: Install upstream dependencies and exact browser engine
+        run: |
+          cd vendor
+          npm install --ignore-scripts --no-audit --no-fund
+          node node_modules/playwright/cli.js install --with-deps chromium
+      - name: Invoke real MCP tool methods against loopback-only fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp experiments/public-playwright-mcp-integration/smoke.mjs vendor/bp-donor-smoke.mjs
+          cd vendor
+          node ./bp-donor-smoke.mjs | tee "$RUNNER_TEMP/bp-donor-receipt.log"
+          grep '^BP_DONOR_RECEIPT=' "$RUNNER_TEMP/bp-donor-receipt.log" | tail -1 >> "$GITHUB_STEP_SUMMARY"
+      - name: Evidence scope, including any unsuccessful attempt
+        if: always()
+        run: |
+          {
+            echo ""
+            echo "Grade DONOR_SYNTHETIC_TOOL_INTEGRATION_ONLY. No real user, selected-tab grant, Stop, account, CAC, PIN, physical presence or provider HIL."
+            echo "No BrowserParity private source or data, and no production policy claims. Unmerged research only."
+          } >> "$GITHUB_STEP_SUMMARY"
