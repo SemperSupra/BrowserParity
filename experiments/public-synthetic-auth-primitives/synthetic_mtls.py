@@ -125,8 +125,12 @@ def main():
                     try:
                         page = ctx.new_page()
                         response = page.goto(url, timeout=12000)
+                        observed_status = response.status if response is not None else None
+                        observed_body = page.locator("body").inner_text()[:120]
+                        print("synthetic_client_cert_http_status=" + str(observed_status))
+                        print("synthetic_client_cert_fixture_reply=" + observed_body)
                         assert response is not None and response.status == 200
-                        assert page.locator("body").inner_text() == "SYNTHETIC_MTLS_APPROVED"
+                        assert observed_body == "SYNTHETIC_MTLS_APPROVED"
                         receipt["tests"].append("PASS:configured_client_certificate_accepted")
                     finally:
                         ctx.close()
