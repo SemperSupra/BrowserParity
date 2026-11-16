@@ -41,8 +41,8 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m venv .venv
-          .venv/bin/python -m pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu 'torch==2.6.0+cpu'
-          .venv/bin/python -m pip install --no-cache-dir 'transformers==4.49.0' 'playwright==1.62.0'
+          .venv/bin/python -m pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu 'torch==2.9.1+cpu'
+          .venv/bin/python -m pip install --no-cache-dir 'transformers==4.57.3' 'playwright==1.62.0'
           .venv/bin/python -m playwright install --with-deps chromium
       - name: Real model proposals and guarded synthetic browser execution
         env:
