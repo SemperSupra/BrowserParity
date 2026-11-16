@@ -33,7 +33,7 @@ jobs:
           mkdir -p vendor
           cd vendor
           npm install --save-exact --no-audit --no-fund \
-            chrome-devtools-mcp@1.13.0 @modelcontextprotocol/sdk@1.25.2
+            chrome-devtools-mcp@1.13.0 @modelcontextprotocol/sdk@1.25.2 puppeteer@25.17.0
           node -e 'const p=require("./node_modules/chrome-devtools-mcp/package.json"); if(p.version!=="1.13.0")process.exit(1);'
           npx --no-install puppeteer browsers install chrome
           echo "Pinned npm chrome-devtools-mcp 1.13.0; GitHub source 4c6c767ddb4332f6334980fec57ebf3ea502ffb8 is a separately identified source reference." >> "$GITHUB_STEP_SUMMARY"
