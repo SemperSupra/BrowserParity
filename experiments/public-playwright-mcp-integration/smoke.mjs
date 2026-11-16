@@ -16,6 +16,16 @@ const html = (label) => `<!doctype html><html lang="en"><head><title>${label}</t
 </body></html>`;
 const server = http.createServer((req,res)=>{
   const pathname = new URL(req.url,'http://localhost').pathname;
+  if (pathname === '/session/start' || pathname === '/session/status') {
+    const isLogin = pathname === '/session/start';
+    const authenticated = (req.headers.cookie || '').includes('bp_synthetic_session=approved');
+    if (isLogin) res.setHeader('Set-Cookie','bp_synthetic_session=approved; HttpOnly; SameSite=Lax; Path=/');
+    res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});
+    res.end('<!doctype html><html lang="en"><body><main><h1>'+(
+      isLogin ? 'SYNTHETIC_APPROVED' : authenticated ? 'SYNTHETIC_READY' : 'SYNTHETIC_AUTH_REQUIRED'
+    )+'</h1></main></body></html>');
+    return;
+  }
   const label = pathname === '/one' ? 'Owned tab one' : pathname === '/two' ? 'Owned tab two' : null;
   if (!label) {res.writeHead(404,{'content-type':'text/plain'});res.end('missing');return;}
   res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});res.end(html(label));
@@ -69,6 +79,30 @@ try {
  await call('browser_tabs',{action:'select',index:0});
  const s1=await call('browser_snapshot');
  t('first_tab_retained',s1.includes('Owned tab one')&&s1.includes('1'),'first tab count survived tab switch');
+
+ // Synthetic login involves no password, user, credential or external identity provider.
+ // What matters is whether the donor's browser contexts actually isolate test cookies.
+ await call('browser_tabs',{action:'new',url:base+'/session/start'});
+ await call('browser_tabs',{action:'select',index:2});
+ const loggedIn=await call('browser_snapshot');
+ t('default_context_synthetic_login',loggedIn.includes('SYNTHETIC_APPROVED'),'synthetic login only');
+ await call('browser_tabs',{action:'new',url:base+'/session/status'});
+ await call('browser_tabs',{action:'select',index:3});
+ const shared=await call('browser_snapshot');
+ t('default_context_cookie_reused',shared.includes('SYNTHETIC_READY'),'second default-context tab receives simulated login state');
+ await call('browser_tabs',{action:'new',url:base+'/session/status',isolatedContext:'bp-test-independent'});
+ await call('browser_tabs',{action:'select',index:4});
+ const isolatedBefore=await call('browser_snapshot');
+ t('separate_context_cookie_denied',isolatedBefore.includes('SYNTHETIC_AUTH_REQUIRED'),'named independent context lacks default cookie');
+ await call('browser_tabs',{action:'new',url:base+'/session/start',isolatedContext:'bp-test-independent'});
+ await call('browser_tabs',{action:'select',index:5});
+ const isolatedLogin=await call('browser_snapshot');
+ t('separate_context_synthetic_login',isolatedLogin.includes('SYNTHETIC_APPROVED'),'separate context can establish its own synthetic session');
+ await call('browser_tabs',{action:'new',url:base+'/session/status',isolatedContext:'bp-test-independent'});
+ await call('browser_tabs',{action:'select',index:6});
+ const isolatedAfter=await call('browser_snapshot');
+ t('separate_context_cookie_shared_within_context',isolatedAfter.includes('SYNTHETIC_READY'),'same named context reuses its own synthetic cookie');
+ receipt.synthetic_auth_isolation_observed=true;
  receipt.raw_mcp_cross_tab_mutation_observed=true;
  console.log('BP_DONOR_RECEIPT='+JSON.stringify(receipt));
 } catch(err) {
