@@ -1,0 +1,70 @@
+name: BrowserMCP Public Ubuntu 22 Targeted Compatibility Qualification
+
+on:
+  push:
+    branches:
+      - "research/public-browsermcp-linux22-triage-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bp-browsermcp-linux22-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  upstream-red-replay:
+    name: Pinned BrowserMCP red-case focused replay (Ubuntu 22.04)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      UPSTREAM_REPO: BrowserMCP/mcp
+      UPSTREAM_SHA: a51ddc4ee2210b102468a52b114e6f00e5bd206e
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+      - name: Fetch exactly pinned public upstream Git source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init vendor
+          git -C vendor remote add origin "https://github.com/$UPSTREAM_REPO.git"
+          git -C vendor fetch --no-tags --depth=1 origin "$UPSTREAM_SHA"
+          git -C vendor checkout --detach FETCH_HEAD
+          test "$(git -C vendor rev-parse HEAD)" = "$UPSTREAM_SHA"
+          echo "Pinned BrowserMCP donor SHA $UPSTREAM_SHA" >> "$GITHUB_STEP_SUMMARY"
+      - name: Install ephemeral source dependencies and build
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global corepack@0.34.5
+          corepack enable
+          cd vendor
+          corepack pnpm install --frozen-lockfile
+          corepack pnpm -r build
+      - name: Install upstream-matched Chromium, without disabling sandbox
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd vendor
+          node packages/mcp/node_modules/playwright-core/cli.js install --with-deps chromium
+          echo "No --no-sandbox flag or privileged broad browser profile was used." >> "$GITHUB_STEP_SUMMARY"
+      - name: Focused replay of previous Windows failures and Linux launch blockers
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd vendor
+          corepack pnpm --filter @browsermcp/mcp exec vitest run \
+            src/commands/engine.test.ts \
+            src/relay/integration.test.ts \
+            src/thin/daemon-client.test.ts \
+            src/thin/server.test.ts
+      - name: State exact evidence grade
+        if: always()
+        run: |
+          echo "Grade UPSTREAM_FOCUSED_COMPATIBILITY_TESTS. No actual human-selected tab/Stop, provider auth, MFA, CAC or BrowserParity replacement acceptance." >> "$GITHUB_STEP_SUMMARY"
+          echo "First-failure baseline: run 43727922984 (Windows 185 passed, 7 failed, 11 skipped) and Ubuntu sandbox report in run 43727618332." >> "$GITHUB_STEP_SUMMARY"
