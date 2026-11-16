@@ -15,6 +15,15 @@ const html=label=>`<!doctype html><html lang="en"><head><title>${label}</title><
 </body></html>`;
 const httpServer=http.createServer((req,res)=>{
  const route=new URL(req.url,'http://localhost').pathname;
+ if(route==='/session/start'||route==='/session/status'){
+  const login=route==='/session/start';
+  const accepted=(req.headers.cookie||'').includes('bp_synthetic_session=approved');
+  if(login)res.setHeader('Set-Cookie','bp_synthetic_session=approved; HttpOnly; SameSite=Lax; Path=/');
+  res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});
+  res.end('<!doctype html><html lang="en"><body><h1>'+
+    (login?'SYNTHETIC_APPROVED':accepted?'SYNTHETIC_READY':'SYNTHETIC_AUTH_REQUIRED')+'</h1></body></html>');
+  return;
+ }
  const label=route==='/one'?'Owned tab one':route==='/two'?'Owned tab two':null;
  if(!label){res.writeHead(404);res.end();return;}
  res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});
@@ -78,6 +87,34 @@ try{
  check('second_click',changed2.includes('TWO_EFFECT_CONFIRMED'),'second target effect independently observed');
  const still1=await call('take_snapshot',{pageId:id1});
  check('first_retained',still1.includes('ONE_EFFECT_CONFIRMED')&&!still1.includes('TWO_EFFECT_CONFIRMED'),'first target unaffected by second click');
+
+ // Only test-owned synthetic state and cookies; none are real user credentials.
+ await call('new_page',{url:base+'/session/start'});
+ let pages=await call('list_pages');
+ const loggedInId=idFor(pages,base+'/session/start');
+ const login=await call('take_snapshot',{pageId:loggedInId});
+ check('default_context_synthetic_login',login.includes('SYNTHETIC_APPROVED'),'synthetic login fixture');
+ await call('new_page',{url:base+'/session/status'});
+ pages=await call('list_pages');
+ const defaultStatusId=idFor(pages,base+'/session/status');
+ const shared=await call('take_snapshot',{pageId:defaultStatusId});
+ check('default_context_session_reuse',shared.includes('SYNTHETIC_READY'),'default context exposes owned test cookie');
+ await call('new_page',{url:base+'/session/status?owner=independent',isolatedContext:'bp-test-independent'});
+ pages=await call('list_pages');
+ const isolatedBeforeId=idFor(pages,base+'/session/status?owner=independent');
+ const before=await call('take_snapshot',{pageId:isolatedBeforeId});
+ check('isolated_context_cookie_denied',before.includes('SYNTHETIC_AUTH_REQUIRED'),'named independent context lacks default session cookie');
+ await call('new_page',{url:base+'/session/start?owner=independent',isolatedContext:'bp-test-independent'});
+ pages=await call('list_pages');
+ const independentLoginId=idFor(pages,base+'/session/start?owner=independent');
+ const independentLogin=await call('take_snapshot',{pageId:independentLoginId});
+ check('independent_context_login',independentLogin.includes('SYNTHETIC_APPROVED'),'named context can establish own synthetic session');
+ await call('new_page',{url:base+'/session/status?owner=independent-verified',isolatedContext:'bp-test-independent'});
+ pages=await call('list_pages');
+ const independentStatusId=idFor(pages,base+'/session/status?owner=independent-verified');
+ const independentStatus=await call('take_snapshot',{pageId:independentStatusId});
+ check('independent_context_session_reuse',independentStatus.includes('SYNTHETIC_READY'),'same named context shares its own synthetic login');
+ result.synthetic_auth_isolation_observed=true;
  result.raw_mcp_cross_tab_mutation_observed=true;
  console.log('BP_CDP_DONOR_RECEIPT='+JSON.stringify(result));
 }catch(e){
