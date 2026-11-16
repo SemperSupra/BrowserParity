@@ -28,8 +28,13 @@ OLD = "return subtotal - shipping"
 ALLOWED = re.compile(r"return subtotal [+\-*/]{1,2} shipping\Z")
 
 def parse(raw):
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        if len(lines) >= 3 and lines[0] in ("```json", "```") and lines[-1] == "```":
+            cleaned = "\n".join(lines[1:-1]).strip()
     try:
-        value = json.loads(raw.strip())
+        value = json.loads(cleaned)
     except (ValueError, TypeError):
         return None
     if not isinstance(value, dict) or set(value) != {"old", "new"}:
@@ -102,14 +107,18 @@ def propose(model_name, revision, feedback):
             "admission": verdict,
             "tokens": int(outputs.shape[-1] - inputs["input_ids"].shape[-1]),
             "response_sha256": hashlib.sha256(raw.encode()).hexdigest(),
+            "synthetic_output_excerpt": raw[:180],
         })
         if verdict == "ALLOW_SYNTHETIC_LINE_REPLACEMENT":
             break
-        prompt += (
-            raw[:180] + "\nRejected: " + verdict +
-            '. Reply only {"old":"return subtotal - shipping",'
-            '"new":"return subtotal + shipping"}.\n'
-        )
+        messages.append({"role": "assistant", "content": raw[:180]})
+        messages.append({"role": "user", "content": (
+            "The last proposal was rejected: " + verdict +
+            '. Reply ONLY {"old":"return subtotal - shipping",'
+            '"new":"return subtotal + shipping"}. No fences or prose.'
+        )})
+        prompt = tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True)
     return proposal, observations, round(time.monotonic() - started, 3)
 
 def main():
