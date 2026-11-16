@@ -1,0 +1,51 @@
+name: Public Chrome DevTools MCP Actual Tool Integration
+
+on:
+  push:
+    branches:
+      - "research/public-chrome-devtools-mcp-integration-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bp-cdp-mcp-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  actual-cdp-mcp:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      CI: "1"
+      CHROME_DEVTOOLS_MCP_NO_USAGE_STATISTICS: "1"
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+      - name: Install exact public distribution and isolated Chrome for Testing
+        run: |
+          mkdir -p vendor
+          cd vendor
+          npm install --save-exact --no-audit --no-fund \
+            chrome-devtools-mcp@1.13.0 @modelcontextprotocol/sdk@1.25.2
+          node -e 'const p=require("./node_modules/chrome-devtools-mcp/package.json"); if(p.version!=="1.13.0")process.exit(1);'
+          npx --no-install puppeteer browsers install chrome
+          echo "Pinned npm chrome-devtools-mcp 1.13.0; GitHub source 4c6c767ddb4332f6334980fec57ebf3ea502ffb8 is a separately identified source reference." >> "$GITHUB_STEP_SUMMARY"
+      - name: Invoke actual Chrome DevTools MCP tools on owned tabs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp experiments/public-chrome-devtools-mcp-integration/smoke.mjs vendor/bp-cdp-smoke.mjs
+          cd vendor
+          node bp-cdp-smoke.mjs | tee "$RUNNER_TEMP/bp-cdp-receipt.log"
+          grep '^BP_CDP_DONOR_RECEIPT=' "$RUNNER_TEMP/bp-cdp-receipt.log" | tail -1 >> "$GITHUB_STEP_SUMMARY"
+      - name: Limit evidence claim
+        if: always()
+        run: |
+          echo "DONOR_SYNTHETIC_TOOL_INTEGRATION_ONLY. Synthetic localhost tabs, not selected-tab human grant, Stop, revocation, real authentication or replacement." >> "$GITHUB_STEP_SUMMARY"
