@@ -75,9 +75,10 @@ jobs:
           cmake --version | head -1
           ninja --version
           python3 -m venv "$RUNNER_TEMP/edge0-tools"
-          "$RUNNER_TEMP/edge0-tools/bin/python" -m pip install --no-cache-dir 'uv==0.9.18'
-          export PATH="$RUNNER_TEMP/edge0-tools/bin:$PATH"
+          "$RUNNER_TEMP/edge0-tools/bin/python" -m pip install --no-cache-dir 'uv==0.9.18' 'jinja2==3.1.6' 'numpy==2.3.4' 'pytest==8.4.2'
+          source "$RUNNER_TEMP/edge0-tools/bin/activate"
           cd "$RUNNER_TEMP/edge0-upstream/edge0-infer"
+          uv sync --project tools/assets --group dev --frozen
           cmake --preset cpu
           cmake --build --preset cpu --parallel 2
           build/cpu/bin/edge0-infer info
