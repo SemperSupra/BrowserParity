@@ -1,0 +1,55 @@
+name: Public Playwright MCP Multi-client HTTP Qualification
+
+on:
+  push:
+    branches:
+      - "research/public-playwright-mcp-multiclient-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bp-playwright-mcp-http-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  multi-client:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      DONOR_SHA: 78eca85361efb545a4c0f59b6140aef0721c5412
+      NPM_CONFIG_FUND: "false"
+      NPM_CONFIG_AUDIT: "false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+      - name: Obtain exact upstream public source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git init vendor
+          git -C vendor remote add origin https://github.com/microsoft/playwright-mcp.git
+          git -C vendor fetch --no-tags --depth=1 origin "$DONOR_SHA"
+          git -C vendor checkout --detach FETCH_HEAD
+          test "$(git -C vendor rev-parse HEAD)" = "$DONOR_SHA"
+      - name: Install exact-version donor and disposable Chrome engine
+        run: |
+          cd vendor
+          npm install --ignore-scripts --no-audit --no-fund
+          node node_modules/playwright/cli.js install --with-deps chromium
+      - name: Two independently connected clients against one actual MCP HTTP server
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp experiments/public-playwright-mcp-multiclient/multiclient.mjs vendor/bp-multiclient.mjs
+          cd vendor
+          node bp-multiclient.mjs | tee "$RUNNER_TEMP/bp-multiclient.log"
+          grep '^BP_MULTICLIENT_RECEIPT=' "$RUNNER_TEMP/bp-multiclient.log" | tail -1 >> "$GITHUB_STEP_SUMMARY"
+      - name: Bound conclusions
+        if: always()
+        run: |
+          echo "Grade ACTUAL_HTTP_MULTICLIENT_SYNTHETIC. No real human browser, protected profile, operator grant, Stop, credential, MFA, CAC/PIV, network external to owned source download." >> "$GITHUB_STEP_SUMMARY"
