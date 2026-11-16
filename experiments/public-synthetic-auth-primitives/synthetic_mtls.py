@@ -12,6 +12,7 @@ import ssl
 import subprocess
 import tempfile
 import threading
+import urllib.request
 from pathlib import Path
 
 from playwright.sync_api import Error as PlaywrightError
@@ -103,7 +104,14 @@ def main():
         server.socket = tls.wrap_socket(server.socket, server_side=True)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
-        url = "https://localhost:" + str(server.server_address[1])
+        url = "https://127.0.0.1:" + str(server.server_address[1])
+        # Verify the fixture trust chain independently of any browser mediation.
+        direct_ctx = ssl.create_default_context(cafile=str(ca.with_suffix(".crt")))
+        direct_ctx.load_cert_chain(str(client_cert.with_suffix(".crt")),
+                                   str(client_cert.with_suffix(".key")))
+        with urllib.request.urlopen(url, context=direct_ctx, timeout=6) as resp:
+            assert resp.status == 200 and resp.read() == b"SYNTHETIC_MTLS_APPROVED"
+        print("local_python_mutual_tls_preflight=PASS")
         receipt = {"grade": "SYNTHETIC_MTLS_BROWSER_HIL", "browser": "chromium",
                    "real_cac": False, "real_private_key_extraction": False,
                    "tests": []}
