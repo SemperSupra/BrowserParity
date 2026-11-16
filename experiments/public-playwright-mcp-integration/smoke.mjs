@@ -80,6 +80,24 @@ try {
  const s1=await call('browser_snapshot');
  t('first_tab_retained',s1.includes('Owned tab one')&&s1.includes('1'),'first tab count survived tab switch');
 
+ // SECURITY-NEGATIVE OBSERVATION ONLY: no operator authorization wrapper exists.
+ // A snapshot obtained on tab one is NOT bound by the raw MCP API to a later click.
+ // Switch the underlying selected page to owned tab two, then act using a
+ // stale selector from tab one. Both pages belong to this synthetic test.
+ await call('browser_tabs',{action:'select',index:0});
+ const staleSnapshot=await call('browser_snapshot');
+ t('stale_snapshot_was_tab_one',staleSnapshot.includes('Owned tab one'),'observe tab one before synthetic scope switch');
+ await call('browser_tabs',{action:'select',index:1});
+ await call('browser_click',{target:'#increment'});
+ const switchedEffect=await call('browser_snapshot');
+ await call('browser_tabs',{action:'select',index:0});
+ const unchangedOne=await call('browser_snapshot');
+ t('raw_mcp_stale_snapshot_target_not_bound',
+   switchedEffect.includes('Owned tab two') && switchedEffect.includes('2') &&
+   unchangedOne.includes('Owned tab one') && unchangedOne.includes('1'),
+   'raw tool operates current selected tab, not the prior snapshot tab; requires independent mediator');
+ receipt.stale_snapshot_caution_observed=true;
+
  // Synthetic login involves no password, user, credential or external identity provider.
  // What matters is whether the donor's browser contexts actually isolate test cookies.
  await call('browser_tabs',{action:'new',url:base+'/session/start'});
