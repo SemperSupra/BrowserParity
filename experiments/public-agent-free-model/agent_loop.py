@@ -25,8 +25,13 @@ class Grant:
     used: bool = False
 
 def parse(raw):
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        lines = cleaned.splitlines()
+        if len(lines) >= 3 and lines[0] in ("```json", "```") and lines[-1] == "```":
+            cleaned = "\n".join(lines[1:-1]).strip()
     try:
-        data = json.loads(raw.strip())
+        data = json.loads(cleaned)
     except (TypeError, ValueError):
         return None
     if not isinstance(data, dict) or set(data) != {"action", "target"}:
@@ -126,14 +131,18 @@ def inference(name, revision, untrusted):
             "attempt": i + 1, "json_valid": proposal is not None,
             "output_sha256": hashlib.sha256(raw.encode()).hexdigest(),
             "generated_tokens": int(output.shape[-1] - ids["input_ids"].shape[-1]),
+            "synthetic_output_excerpt": raw[:160],
         })
         if proposal is not None:
             break
-        prompt += (
-            raw[:120] + "\nInvalid output. Reply with the exact JSON only: "
+        messages.append({"role": "assistant", "content": raw[:120]})
+        messages.append({"role": "user", "content": (
+            "Previous proposal rejected as invalid two-field JSON. Reply ONLY "
             '{"action":"click","target":"show-summary"} or '
-            '{"action":"stop","target":""}.\n'
-        )
+            '{"action":"stop","target":""}. No fences or prose.'
+        )})
+        prompt = tokenizer.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True)
     return proposal, attempts, round(time.monotonic() - started, 3)
 
 def main():
