@@ -1,0 +1,49 @@
+name: Public Qwen CPU Coding Agent Qualification
+
+on:
+  push:
+    branches:
+      - "research/public-qwen-coding-agent-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bp-qwen-code-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guarded-repair:
+    name: Qwen2.5-Coder 1.5B guarded synthetic repair
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      TOKENIZERS_PARALLELISM: "false"
+      PYTHONUNBUFFERED: "1"
+      MODEL: Qwen/Qwen2.5-Coder-1.5B-Instruct
+      MODEL_REVISION: 2e1fd397ee46e1388853d2af2c993145b0f1098a
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned CPU-only inference runtime
+        run: |
+          set -euo pipefail
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu 'torch==2.9.1+cpu'
+          .venv/bin/python -m pip install --no-cache-dir 'transformers==4.57.3'
+      - name: Run bounded model proposal, synthetic edit, and real tests
+        run: |
+          set -euo pipefail
+          .venv/bin/python experiments/public-cpu-coding-agent/coding_agent.py \
+            --model "$MODEL" --revision "$MODEL_REVISION" |
+            tee "$RUNNER_TEMP/bp-coding-agent.log"
+          grep '^BP_CPU_CODING_AGENT_RECEIPT=' "$RUNNER_TEMP/bp-coding-agent.log" |
+            tail -1 >> "$GITHUB_STEP_SUMMARY"
+      - name: Evidence ceiling
+        if: always()
+        run: |
+          echo 'No secrets; read-only checkout; no git write; synthetic Python only.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Guard pass is distinct from repair success. No automatic PR/merge.' >> "$GITHUB_STEP_SUMMARY"
