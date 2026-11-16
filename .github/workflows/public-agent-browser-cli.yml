@@ -1,0 +1,82 @@
+name: Public Agent-Browser CLI Donor Integration
+
+on:
+  push:
+    branches:
+      - "research/public-agent-browser-cli-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bp-agent-browser-cli-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  agent-browser-two-sessions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    env:
+      CI: "1"
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+      AGENT_BROWSER_DISABLE_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "24"
+      - name: Install pinned public donor in disposable workspace
+        run: |
+          mkdir -p vendor
+          cd vendor
+          npm install --save-exact --no-audit --no-fund agent-browser@0.43.0
+          node -e 'const p=require("./node_modules/agent-browser/package.json"); if(p.version!=="0.43.0")process.exit(1)'
+          ./node_modules/.bin/agent-browser install
+      - name: Qualify actual native CLI sessions against local synthetic portal
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -u experiments/public-agent-browser-cli/fixture.py > "$RUNNER_TEMP/portal-url.txt" &
+          portal_pid=$!
+          AB="$GITHUB_WORKSPACE/vendor/node_modules/.bin/agent-browser"
+          cleanup() {
+            "$AB" --session bp-donor-alpha close >/dev/null 2>&1 || true
+            "$AB" --session bp-donor-beta close >/dev/null 2>&1 || true
+            kill "$portal_pid" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          for k in $(seq 1 30); do
+            test -s "$RUNNER_TEMP/portal-url.txt" && break
+            sleep 0.1
+          done
+          BASE="$(head -n1 "$RUNNER_TEMP/portal-url.txt")"
+          test "${BASE#http://127.0.0.1:}" != "$BASE"
+          "$AB" --session bp-donor-alpha open "$BASE/alpha"
+          "$AB" --session bp-donor-beta open "$BASE/beta"
+          "$AB" --session bp-donor-alpha snapshot | grep 'Increment'
+          "$AB" --session bp-donor-alpha click '#act'
+          test "$("$AB" --session bp-donor-alpha get text '#counter')" = "1"
+          test "$("$AB" --session bp-donor-beta get text '#counter')" = "0"
+          "$AB" --session bp-donor-beta click '#act'
+          test "$("$AB" --session bp-donor-beta get text '#counter')" = "1"
+          test "$("$AB" --session bp-donor-alpha get text '#counter')" = "1"
+          "$AB" --session bp-donor-alpha open "$BASE/session/login"
+          "$AB" --session bp-donor-alpha open "$BASE/session/status"
+          "$AB" --session bp-donor-alpha snapshot | grep SYNTHETIC_READY
+          "$AB" --session bp-donor-beta open "$BASE/session/status"
+          "$AB" --session bp-donor-beta snapshot | grep SYNTHETIC_AUTH_REQUIRED
+          "$AB" --session bp-donor-beta open "$BASE/session/login"
+          "$AB" --session bp-donor-beta open "$BASE/session/status"
+          "$AB" --session bp-donor-beta snapshot | grep SYNTHETIC_READY
+          {
+            echo "Verified actual native agent-browser v0.43.0 CLI two independent sessions and synthetic-only cookie isolation."
+            echo "Evidence: DONOR_CLI_SYNTHETIC_INTEGRATION. No shared human profile, Stop, CAC, MFA, real account, physical presence or replacement qualification."
+            echo "Passed: A counter increment; B unaffected; B counter increment; A retained; A synthetic login; B initially anonymous; B own login."
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve evidence scope
+        if: always()
+        run: |
+          echo "Public source only, no private BrowserParity files or credentials. No sandbox weakening or actual provider interaction." >> "$GITHUB_STEP_SUMMARY"
