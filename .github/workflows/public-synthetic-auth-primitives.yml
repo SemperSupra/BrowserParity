@@ -105,3 +105,29 @@ jobs:
         if: always()
         run: |
           echo "Evidence: SOFTWARE_PKCS11_ONLY. Not genuine CAC, PIN pad, card removal, hardware nonextractability, DoD PKI or protected provider HIL." >> "$GITHUB_STEP_SUMMARY"
+
+  synthetic-mtls:
+    name: Chromium synthetic mutual TLS client-certificate fixture
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Chromium in isolated Python environment
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check "playwright==1.62.0"
+          .venv/bin/python -m playwright install --with-deps chromium
+      - name: Exercise local mTLS with synthetic certs and deny wrong contexts
+        run: |
+          .venv/bin/python experiments/public-synthetic-auth-primitives/synthetic_mtls.py
+      - name: Bound claims and custody
+        if: always()
+        run: |
+          echo "Grade SYNTHETIC_MTLS_BROWSER_HIL only. Private key was created in runner temp and not uploaded or committed." >> "$GITHUB_STEP_SUMMARY"
+          echo "No genuine CAC, smart-card reader, physical user presence, PIN, CNG, policy or protected-site login proven." >> "$GITHUB_STEP_SUMMARY"
