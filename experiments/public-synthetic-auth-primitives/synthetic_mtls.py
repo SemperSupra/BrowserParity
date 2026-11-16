@@ -95,7 +95,7 @@ def main():
         server_cert = make_leaf(root, ca, "localhost", "serverAuth", san=True)
         client_cert = make_leaf(root, ca, "BP-SYNTHETIC-CLIENT", "clientAuth")
         wrongca = make_ca(root, "BP-FOREIGN-CA")
-        wrong_cert = make_leaf(root, wrongca, "BP-SYNTHETIC-CLIENT", "clientAuth")
+        wrong_cert = make_leaf(root, wrongca, "BP-FOREIGN-CLIENT", "clientAuth")
 
         server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
