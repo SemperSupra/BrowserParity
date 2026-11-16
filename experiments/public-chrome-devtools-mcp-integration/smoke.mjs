@@ -11,7 +11,7 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 const html=label=>`<!doctype html><html lang="en"><head><title>${label}</title></head><body>
 <h1>${label}</h1><button id="act">Increment</button>
 <output aria-label="Click outcome" id="out" aria-live="polite">UNCHANGED</output>
-<script>document.querySelector("#act").addEventListener("click",()=>document.querySelector("#out").textContent="${label.split(' ').at(-1).toUpperCase()}_EFFECT_CONFIRMED");</script>
+<script>let count=0;document.querySelector("#act").addEventListener("click",()=>document.querySelector("#out").textContent="${label.split(' ').at(-1).toUpperCase()}_EFFECT_CONFIRMED_"+(++count));</script>
 </body></html>`;
 const httpServer=http.createServer((req,res)=>{
  const route=new URL(req.url,'http://localhost').pathname;
@@ -87,6 +87,32 @@ try{
  check('second_click',changed2.includes('TWO_EFFECT_CONFIRMED'),'second target effect independently observed');
  const still1=await call('take_snapshot',{pageId:id1});
  check('first_retained',still1.includes('ONE_EFFECT_CONFIRMED')&&!still1.includes('TWO_EFFECT_CONFIRMED'),'first target unaffected by second click');
+
+ // Probe one owned tab's stale snapshot UID against a DIFFERENT explicitly
+ // addressed owned page. The result is descriptive, not a production DENY.
+ // A successful raw MCP effect is NOT a human authorization.
+ const staleUid=uidFor(snap1,'Increment');
+ const secondUid=uidFor(snap2,'Increment');
+ const cross=await client.callTool({name:'click',arguments:{pageId:id2,uid:staleUid}});
+ const afterStale=await call('take_snapshot',{pageId:id2});
+ const didMutate=afterStale.includes('TWO_EFFECT_CONFIRMED_2');
+ const retained=afterStale.includes('TWO_EFFECT_CONFIRMED_1');
+ result.stale_uid_cross_page={
+  identical_uids: staleUid===secondUid,
+  tool_is_error: !!cross.isError,
+  effect_observed: didMutate,
+  preserved_first_effect: retained
+ };
+ check('stale_uid_cross_page_outcome_observed',
+   didMutate!==retained,
+   'actual second-page postcondition must identify whether stale source UID mutated the target');
+ const firstAfterStale=await call('take_snapshot',{pageId:id1});
+ check('stale_uid_unrelated_first_page_still_unchanged',
+   firstAfterStale.includes('ONE_EFFECT_CONFIRMED_1'),
+   'independent page-one state unchanged; no cross-page inference from call reply');
+ check('stale_uid_call_result_classified',
+   !cross.isError || retained || didMutate,
+   'do not infer no effect from error without checking actual postcondition');
 
  // Only test-owned synthetic state and cookies; none are real user credentials.
  await call('new_page',{url:base+'/session/start'});
