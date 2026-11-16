@@ -1,0 +1,47 @@
+name: Public Paired Browser Observer-Effect Qualification
+
+on:
+  push:
+    branches:
+      - "research/public-paired-observer-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bp-paired-observer-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  paired-observation:
+    name: Paired user-like and instrumented ( ${{ matrix.engine }} )
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [chromium, firefox, webkit]
+    env:
+      BROWSER_ENGINE: ${{ matrix.engine }}
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned Playwright and selected real browser engine
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --disable-pip-version-check "playwright==1.62.0"
+          .venv/bin/python -m playwright install --with-deps "${{ matrix.engine }}"
+      - name: Execute three isolated synthetic lanes and corroborate observer effects
+        shell: bash
+        run: |
+          set -euo pipefail
+          .venv/bin/python experiments/public-paired-observer/paired_observer.py |
+            tee "$RUNNER_TEMP/paired-observer-receipt.log"
+          grep '^BP_PAIRED_OBSERVER_RECEIPT=' "$RUNNER_TEMP/paired-observer-receipt.log" |
+            tail -1 >> "$GITHUB_STEP_SUMMARY"
+      - name: Evidence ceiling
+        if: always()
+        run: |
+          echo "Grade REAL_BROWSER_OWNED_SYNTHETIC_PAIRED_OBSERVER only; baseline and instrumented fixtures on local loopback, no real user, profile, private source or authenticated provider. No #56 promotion." >> "$GITHUB_STEP_SUMMARY"
