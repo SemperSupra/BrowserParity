@@ -1,0 +1,63 @@
+name: Public Free-Model Browser Agent Synthetic RDTE
+
+on:
+  push:
+    branches:
+      - "research/public-smollm-agent-loop-*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bp-free-model-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  free-agent:
+    name: "CPU agent ${{ matrix.id }}"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      max-parallel: 2
+      fail-fast: false
+      matrix:
+        include:
+          - id: 135m
+            model: HuggingFaceTB/SmolLM2-135M-Instruct
+            revision: 12fd25f77366fa6b3b4b768ec3050bf629380bac
+          - id: 360m
+            model: HuggingFaceTB/SmolLM2-360M-Instruct
+            revision: c38281e01d0c0b0c36eac2f5bcb5b51fa2e803fc
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+      TOKENIZERS_PARALLELISM: "false"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned CPU model runtime and Chromium
+        run: |
+          set -euo pipefail
+          python3 -m venv .venv
+          .venv/bin/python -m pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu 'torch==2.6.0+cpu'
+          .venv/bin/python -m pip install --no-cache-dir 'transformers==4.49.0' 'playwright==1.62.0'
+          .venv/bin/python -m playwright install --with-deps chromium
+      - name: Real model proposals and guarded synthetic browser execution
+        env:
+          BP_MODEL: ${{ matrix.model }}
+          BP_REVISION: ${{ matrix.revision }}
+        run: |
+          set -euo pipefail
+          .venv/bin/python experiments/public-agent-free-model/agent_loop.py \
+            --model "$BP_MODEL" --revision "$BP_REVISION" |
+            tee "$RUNNER_TEMP/bp-free-model-agent.log"
+          grep '^BP_FREE_MODEL_AGENT_RECEIPT=' "$RUNNER_TEMP/bp-free-model-agent.log" |
+            tail -1 >> "$GITHUB_STEP_SUMMARY"
+      - name: Evidence scope
+        if: always()
+        run: |
+          echo 'Evidence: synthetic-only, untrusted model proposals, gated actions, no promotion.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No private source, authenticated profiles, account data, secrets or payment API.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Job success verifies safety oracle only; model task success is a separate receipt field.' >> "$GITHUB_STEP_SUMMARY"
