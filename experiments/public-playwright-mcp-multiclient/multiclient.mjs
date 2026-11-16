@@ -80,10 +80,12 @@ try {
    call(a,'browser_navigate',{url:siteUrl+'/a'}),
    call(b,'browser_navigate',{url:siteUrl+'/b'})
  ]);
- check('parallel_distinct_pages',res[0].includes('Alpha owner')&&res[1].includes('Beta owner'),
-  'two simultaneous clients navigate separate owned documents');
- const sa=await call(a,'browser_snapshot');
- const sb=await call(b,'browser_snapshot');
+ receipt.parallel_navigation_response_contains_page_title=res.map((x,i)=>x.includes(i===0?'Alpha owner':'Beta owner'));
+ // Browser navigation replies need not carry a full page tree; observe the
+ // postcondition independently via an actual snapshot in each HTTP client.
+ const [sa,sb]=await Promise.all([call(a,'browser_snapshot'),call(b,'browser_snapshot')]);
+ check('parallel_distinct_pages',sa.includes('Alpha owner')&&sb.includes('Beta owner'),
+  'post-navigation independent snapshot in each of two concurrent HTTP clients');
  check('client_a_document',sa.includes('Alpha owner')&&!sa.includes('Beta owner'),'A sees A');
  check('client_b_document',sb.includes('Beta owner')&&!sb.includes('Alpha owner'),'B sees B');
  await call(a,'browser_click',{target:'#act'});
