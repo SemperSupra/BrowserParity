@@ -93,18 +93,22 @@ try {
  const sb0=await call(b,'browser_snapshot');
  check('a_mutation_not_in_b',sa1.includes('1')&&sb0.includes('0'),'actual A effect does not modify B');
  await call(a,'browser_navigate',{url:siteUrl+'/login'});
- const aAuth=await call(a,'browser_navigate',{url:siteUrl+'/status'});
- const bAnon=await call(b,'browser_navigate',{url:siteUrl+'/status'});
+ await call(a,'browser_navigate',{url:siteUrl+'/status'});
+ await call(b,'browser_navigate',{url:siteUrl+'/status'});
+ const [aAuth,bAnon]=await Promise.all([call(a,'browser_snapshot'),call(b,'browser_snapshot')]);
  check('synthetic_session_cookie_separation',aAuth.includes('SYNTHETIC_READY')&&bAnon.includes('SYNTHETIC_AUTH_REQUIRED'),
    'test login in A is absent from B');
  await disconnect('A');
- const bAgain=await call(b,'browser_navigate',{url:siteUrl+'/b'});
+ await call(b,'browser_navigate',{url:siteUrl+'/b'});
+ const bAgain=await call(b,'browser_snapshot');
  check('b_survives_a_termination',bAgain.includes('Beta owner'),'B continues after A session terminated');
  const c=await connect('C',endpoint);
- const cAnon=await call(c,'browser_navigate',{url:siteUrl+'/status'});
+ await call(c,'browser_navigate',{url:siteUrl+'/status'});
+ const cAnon=await call(c,'browser_snapshot');
  check('new_client_not_inheriting_a_cookie',cAnon.includes('SYNTHETIC_AUTH_REQUIRED'),'new HTTP MCP client has no A cookie');
  await disconnect('B');
- const cStill=await call(c,'browser_navigate',{url:siteUrl+'/a'});
+ await call(c,'browser_navigate',{url:siteUrl+'/a'});
+ const cStill=await call(c,'browser_snapshot');
  check('c_survives_b_termination',cStill.includes('Alpha owner'),'C continues after B disconnected');
  await disconnect('C');
  receipt.http_mcp_session_isolation_observed=true;
