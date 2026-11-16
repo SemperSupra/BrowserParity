@@ -27,6 +27,7 @@ def openssl(*args):
 def make_ca(root, name):
     stem = root / name
     openssl("req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+            "-addext", "keyUsage=critical,keyCertSign,cRLSign",
             "-subj", f"/CN={name}", "-keyout", stem.with_suffix(".key"),
             "-out", stem.with_suffix(".crt"))
     return stem
