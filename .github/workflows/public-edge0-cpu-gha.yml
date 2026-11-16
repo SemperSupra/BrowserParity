@@ -1,0 +1,91 @@
+name: Public Edge0 CPU and Runner Capacity Qualification
+on:
+  push:
+    branches:
+      - "research/public-edge0-cpu-census-*"
+permissions:
+  contents: read
+concurrency:
+  group: bp-edge0-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  source-and-capacity:
+    name: Edge0 CPU source tests ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    env:
+      EDGE0_SHA: f6bfa5546bcf89919f86946ec669bcc7f4cd526d
+      CENSUS_RUNNER_LABEL: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Measure actual RAM and disk before large assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' | tee "$RUNNER_TEMP/edge0-capacity.log"
+          import json, os, platform, shutil
+          d = shutil.disk_usage(os.environ['RUNNER_TEMP'])
+          m = next((int(s.split()[1])*1024 for s in open('/proc/meminfo') if s.startswith('MemTotal:')), 0)
+          # Named block nodes do not prove a physical NVMe device behind the mounted filesystem.
+          nvme = len([x for x in os.listdir('/sys/block') if x.startswith('nvme')])
+          receipt = {
+              'schema':'bp-edge0-gha-capacity/v1',
+              'scope':'PUBLIC_STANDARD_RUNNER_OBSERVED_ONLY',
+              'runner':os.environ['CENSUS_RUNNER_LABEL'],
+              'architecture':platform.machine(),
+              'logical_cpus':os.cpu_count(),
+              'memory_total_bytes':m,
+              'disk_free_bytes':d.free,
+              'disk_total_bytes':d.total,
+              '35b_disk_fit_if_42gb_assets_plus_8gb_reserve':d.free >= 50_000_000_000,
+              'nvme_named_nodes':nvme,
+              'direct_nvme_qualified':False,
+              'weights_downloaded':False,
+              'real_35b_inference_tested':False,
+          }
+          print('BP_EDGE0_GHA_CAPACITY='+json.dumps(receipt,sort_keys=True))
+          assert m >= 3_000_000_000 and d.free >= 6_000_000_000
+          PY
+          grep '^BP_EDGE0_GHA_CAPACITY=' "$RUNNER_TEMP/edge0-capacity.log" >> "$GITHUB_STEP_SUMMARY"
+      - name: Fetch exact Edge0 upstream source, sparse and detached
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/edge0-upstream"
+          cd "$RUNNER_TEMP/edge0-upstream"
+          git init -q
+          git remote add origin https://github.com/Edge0-AI/Edge0.git
+          git sparse-checkout init --cone
+          git sparse-checkout set edge0-infer
+          git fetch -q --depth=1 --filter=blob:none origin "$EDGE0_SHA"
+          git checkout -q --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$EDGE0_SHA"
+          echo "Upstream source sha: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Build and execute actual native CPU L0 and L1
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --version | head -1
+          ninja --version
+          python3 -m venv "$RUNNER_TEMP/edge0-tools"
+          "$RUNNER_TEMP/edge0-tools/bin/python" -m pip install --no-cache-dir 'uv==0.9.18'
+          export PATH="$RUNNER_TEMP/edge0-tools/bin:$PATH"
+          cd "$RUNNER_TEMP/edge0-upstream/edge0-infer"
+          cmake --preset cpu
+          cmake --build --preset cpu --parallel 2
+          build/cpu/bin/edge0-infer info
+          ctest --preset cpu -L 'L0|L1' --output-on-failure --parallel 2 |
+            tee "$RUNNER_TEMP/edge0-ctest.log"
+          echo "Native Edge0 source + L0/L1 test command completed" >> "$GITHUB_STEP_SUMMARY"
+      - name: Evidence boundary
+        if: always()
+        run: |
+          echo "Only public Apache-2.0 Edge0 source; no model weights or private data." >> "$GITHUB_STEP_SUMMARY"
+          echo "L0/L1 is not L2 tiny model, L3 real 35B inference, or proof of NVMe." >> "$GITHUB_STEP_SUMMARY"
