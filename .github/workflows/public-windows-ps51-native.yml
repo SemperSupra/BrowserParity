@@ -1,12 +1,7 @@
 name: Public Windows PS51 Native Semantics R076
 
 on:
-  push:
-    branches:
-      - research/r076-public-ps51-native-idioms-20261117
-    paths:
-      - ".github/workflows/public-windows-ps51-native.yml"
-      - "experiments/public-windows-ps51-native/**"
+  # Qualify once per source PR update; do not double-bill push + PR events.
   pull_request:
     paths:
       - ".github/workflows/public-windows-ps51-native.yml"
