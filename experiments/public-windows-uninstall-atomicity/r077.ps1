@@ -79,10 +79,20 @@ function Inspect-Owned {
         $digest=(Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash.ToLowerInvariant()
         if ($digest -ne $expectedDigest) { throw 'DENY: binary digest mismatch' }
     }
-    if ($hasRegistry -and -not [string]::Equals((Get-Binding),$manifest,[StringComparison]::Ordinal)) {
-        throw 'DENY: foreign binding'
+    if ($hasRegistry) {
+        $reg = Get-Item -LiteralPath $key
+        $names = @($reg.GetValueNames())
+        if ($names.Count -ne 1 -or $names[0] -ne '') {
+            throw 'DENY: foreign registry value names'
+        }
+        if (@(Get-ChildItem -LiteralPath $key).Count -ne 0) {
+            throw 'DENY: foreign registry subkeys'
+        }
+        if (-not [string]::Equals((Get-Binding),$manifest,[StringComparison]::Ordinal)) {
+            throw 'DENY: foreign binding'
+        }
+        return 'OWN_REGISTERED'
     }
-    if ($hasRegistry) { return 'OWN_REGISTERED' }
     return 'OWN_ORPHAN'
 }
 function Safe-Remove([bool]$Approved) {
@@ -137,6 +147,12 @@ try {
     ExpectDeny { Safe-Remove $true } 'foreign registry value'
     Require ([string]::Equals((Get-Binding),'synthetic-untrusted-location',[StringComparison]::Ordinal)) 'foreign value left alone'
     Set-Item -Path $key -Value $manifest -ErrorAction Stop
+
+    $phase = 'foreign registry named value negative'
+    Set-ItemProperty -Path $key -Name 'synthetic-foreign' -Value 'denied' -ErrorAction Stop
+    ExpectDeny { Safe-Remove $true } 'foreign named registry value'
+    Require (Test-Path -LiteralPath $key) 'foreign named value did not unregister'
+    Remove-ItemProperty -Path $key -Name 'synthetic-foreign' -ErrorAction Stop
 
     $phase = 'manifest substitution negative'
     [IO.File]::WriteAllText($manifest,'synthetic adversary')
@@ -200,8 +216,8 @@ finally {
         foreach ($known in @($extra,$binary,$manifest)) {
             if (Test-Path -LiteralPath $known -PathType Leaf) { Remove-Item -LiteralPath $known -ErrorAction Stop }
         }
-        if (Test-Path -LiteralPath $nested -PathType Container -and
-            @(Get-ChildItem -LiteralPath $nested -Force).Count -eq 0) {
+        if ((Test-Path -LiteralPath $nested -PathType Container) -and
+            (@(Get-ChildItem -LiteralPath $nested -Force).Count -eq 0)) {
             [IO.Directory]::Delete($nested)
         }
         if (@(Get-ChildItem -LiteralPath $folder -Force).Count -ne 0) {
