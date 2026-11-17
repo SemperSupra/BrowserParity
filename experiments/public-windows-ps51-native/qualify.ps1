@@ -26,6 +26,7 @@ $manifestBody = [ordered]@{
     allowed_origins = @($origin)
 } | ConvertTo-Json -Depth 4 -Compress
 $checks = 0
+$phase = 'initial'
 function Check([bool]$ok, [string]$description) {
     if (-not $ok) { throw ('CHECK FAIL: ' + $description) }
     $script:checks++
@@ -44,8 +45,10 @@ function RefuseUnknownFiles {
 }
 [void][IO.Directory]::CreateDirectory($dir)
 try {
+    $phase = 'preflight'
     Check (-not (Test-Path -LiteralPath $registryRoot)) 'fresh isolated HKCU root'
     Check (Test-Path -LiteralPath $dir) 'run-owned temp directory'
+    $phase = 'binary and manifest'
     [IO.File]::WriteAllBytes($binary, [byte[]]@(0x42, 0x50, 0x30, 0x76))
     $expectedHash = (Get-FileHash -LiteralPath $binary -Algorithm SHA256).Hash
     Check ($expectedHash -match '^[a-fA-F0-9]{64}$') 'SHA-256 reports valid digest'
@@ -61,12 +64,15 @@ try {
     Check ([string]::Equals([IO.File]::ReadAllText($manifest), $manifestBody, [StringComparison]::Ordinal)) 'JSON manifest exact bytes'
     $decoded = [IO.File]::ReadAllText($manifest) | ConvertFrom-Json
     Check ($decoded.allowed_origins.Count -eq 1 -and $decoded.allowed_origins[0] -eq $origin) 'manifest exact one origin'
+    $phase = 'registry-key create'
     [void](New-Item -Path $registryRoot -ErrorAction Stop)
     [void](New-Item -Path $registryKey -ErrorAction Stop)
     $reg = Get-Item -LiteralPath $registryKey
+    $phase = 'registry default value'
     $reg.SetValue('', $manifest, [Microsoft.Win32.RegistryValueKind]::String)
     RefuseForeignRegistration $manifest
     Check ([string]::Equals((Get-Item -LiteralPath $registryKey).GetValue(''), $manifest, [StringComparison]::Ordinal)) 'exact HKCU default value'
+    $phase = 'foreign-value negative'
     $reg.SetValue('', 'FOREIGN-REPLACEMENT', [Microsoft.Win32.RegistryValueKind]::String)
     $denied = $false
     try { RefuseForeignRegistration $manifest }
@@ -75,6 +81,7 @@ try {
     $reg.SetValue('', $manifest, [Microsoft.Win32.RegistryValueKind]::String)
     RefuseForeignRegistration $manifest
     Check $true 'registration restored only after explicit test state'
+    $phase = 'managed-file unknown-negative'
     RefuseUnknownFiles
     Check $true 'exact two managed fixture files'
     [IO.File]::WriteAllText($foreign, 'synthetic extra')
@@ -85,6 +92,7 @@ try {
     [IO.File]::Delete($foreign)
     RefuseUnknownFiles
     Check $true 'safe cleanup preflight restored'
+    $phase = 'explicit cleanup'
     [void](Remove-Item -LiteralPath $registryKey -ErrorAction Stop)
     [void](Remove-Item -LiteralPath $registryRoot -ErrorAction Stop)
     Check (-not (Test-Path -LiteralPath $registryRoot)) 'no HKCU fixture after cleanup'
@@ -106,6 +114,11 @@ try {
         promotion_authorized = $false
     } | ConvertTo-Json -Depth 5 -Compress
 }
+catch {
+    Write-Output ('R076_FIRST_FAILURE_PHASE=' + $phase)
+    Write-Output ('R076_FIRST_FAILURE_MESSAGE=' + $_.Exception.Message)
+    throw
+}
 finally {
     # Best-effort cleanup only the random run-owned namespace. Preserve any
     # unexpected content if it cannot be verified; an unknown state is failure.
@@ -114,7 +127,8 @@ finally {
         if ($keyPresent) {
             $current = (Get-Item -LiteralPath $registryKey).GetValue('')
             if ([string]::Equals($current, $manifest, [StringComparison]::Ordinal) -or
-                [string]::Equals($current, 'FOREIGN-REPLACEMENT', [StringComparison]::Ordinal)) {
+                [string]::Equals($current, 'FOREIGN-REPLACEMENT', [StringComparison]::Ordinal) -or
+                [string]::IsNullOrEmpty($current)) {
                 Remove-Item -LiteralPath $registryKey -ErrorAction Stop
             } else { throw 'Unrecognized registry value; cannot safely clean up' }
         }
