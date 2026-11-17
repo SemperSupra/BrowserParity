@@ -1,0 +1,120 @@
+name: Public Approved Foundry OCI Cross-Repo Hydration
+on:
+  push:
+    branches: ["research/maf-ghcr-hydration-*"]
+permissions:
+  contents: read
+  packages: read
+concurrency:
+  group: bp-maf-cache-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  hydrate:
+    name: "Read-only GHCR ${{ matrix.label }} on ${{ matrix.runner }}"
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - label: faster-whisper-tiny
+            runner: ubuntu-24.04
+            logical_id: asr/faster-whisper/tiny
+            digest: sha256:f2d664ae986b0b0598037a9f0b929fd0b0b748871474a06c84658c1f2a1a4b42
+          - label: siglip2-base
+            runner: ubuntu-24.04-arm
+            logical_id: embed/siglip2/base-patch16-224
+            digest: sha256:c93e953d44105c8cd59be4b893acee43858e9fcb8b4deb20f83535a2165c1c3d
+    env:
+      MAF_SHA: 6bc5750dcd947cbbf8b3a11e80afbabd81c19ed6
+      MAF_ID: ${{ matrix.logical_id }}
+      MAF_DIGEST: ${{ matrix.digest }}
+      MAF_RUNNER: ${{ matrix.runner }}
+      HF_HUB_OFFLINE: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Pin exact public Foundry source and catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/maf-source"
+          cd "$RUNNER_TEMP/maf-source"
+          git init -q
+          git remote add origin https://github.com/SemperSupra/model-artifact-foundry.git
+          git sparse-checkout init --cone
+          git sparse-checkout set tools catalog
+          git fetch -q --depth=1 --filter=blob:none origin "$MAF_SHA"
+          git checkout -q --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$MAF_SHA"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          a=json.loads(Path("catalog/approved.json").read_text())["artifacts"][os.environ["MAF_ID"]]
+          assert a["approved_digest"] == os.environ["MAF_DIGEST"]
+          assert a["oci_repository"] == "ghcr.io/sempersupra/model-artifact-foundry"
+          assert a["license_spdx_id"] and a["upstream_exact_revision"]
+          print("MAF_APPROVED_CATALOG_CHECK=PASS")
+          PY
+      - uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d
+        with:
+          version: 1.3.3
+      - name: Verify anonymous GHCR pull and content-addressed hydration, then offline reuse
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/maf-source"
+          export ORAS_CACHE="$RUNNER_TEMP/oras-cache"
+          mkdir -p "$ORAS_CACHE"
+          first="$(python3 tools/hydrate.py --catalog catalog/approved.json --id "$MAF_ID" --cache-root "$RUNNER_TEMP/maf-cache" | tail -n1)"
+          test -d "$first"
+          second="$(python3 tools/hydrate.py --catalog catalog/approved.json --id "$MAF_ID" --cache-root "$RUNNER_TEMP/maf-cache" --oras /bin/false | tail -n1)"
+          test "$first" = "$second"
+          export MAF_MODEL_DIR="$second"
+          python3 - <<'PY'
+          import hashlib,json,os,platform
+          from pathlib import Path
+          root=Path(os.environ["MAF_MODEL_DIR"])
+          manifest=json.loads((root.parent/"bundle-manifest.json").read_text())
+          catalog=json.loads(Path("catalog/approved.json").read_text())
+          logical=os.environ["MAF_ID"]
+          approved=catalog["artifacts"][logical]
+          assert manifest["logical_id"] == logical
+          assert manifest["upstream"]["exact_revision"]==approved["upstream_exact_revision"]
+          total=0
+          for row in manifest["files"]:
+              p=root/row["path"]
+              assert p.is_file() and p.stat().st_size==row["size_bytes"]
+              h=hashlib.sha256()
+              with p.open("rb") as f:
+                  for block in iter(lambda:f.read(1048576),b""):h.update(block)
+              assert h.hexdigest()==row["sha256"]
+              total+=row["size_bytes"]
+          receipt={
+              "schema":"browserparity-maf-ghcr-crossrepo/v1",
+              "foundry_source_sha":os.environ["MAF_SHA"],
+              "consumer_sha":os.environ["GITHUB_SHA"],
+              "runner":os.environ["MAF_RUNNER"],
+              "architecture":platform.machine(),
+              "logical_id":logical,
+              "approved_oci_digest":approved["approved_digest"],
+              "file_count":len(manifest["files"]),
+              "verified_bytes":total,
+              "offline_rehydrate_pass":True,
+              "ghcr_public_readback_pass":True,
+              "ghcr_publication_performed":False,
+              "model_inference_performed":False,
+              "persisted_cross_job_cache":False
+          }
+          line="BP_MAF_GHCR_CACHE_RECEIPT="+json.dumps(receipt,sort_keys=True,separators=(",",":"))
+          print(line,flush=True)
+          with open(os.environ["GITHUB_STEP_SUMMARY"],"a") as out:out.write(line+"\n")
+          PY
+      - name: Evidence boundary
+        if: always()
+        run: |
+          echo "Read-only approved public GHCR artifacts; no token, model upload, private source, or model inference." >> "$GITHUB_STEP_SUMMARY"
+          echo "Cross-job persistence remains untested; this is only same-run verified offline reuse." >> "$GITHUB_STEP_SUMMARY"

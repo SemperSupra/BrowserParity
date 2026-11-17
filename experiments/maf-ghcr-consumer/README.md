@@ -1,0 +1,9 @@
+# Foundry approved GHCR consumer qualification
+
+This is a read-only cross-repository test of the existing Model Artifact Foundry OCI distribution plane, not a new model registry or model publication.
+
+Upstream public Foundry source and catalog are pinned to 6bc5750dcd947cbbf8b3a11e80afbabd81c19ed6. Two independently approved model digests are strict admission equality checks. A change to either upstream catalog entry fails closed. Standard public free GHA runners on Ubuntu x64 and ARM64 run in parallel (max 2, timeout 12 minutes per job). Each pulls one public approved OCI artifact from GHCR using pinned ORAS, then invokes the existing Foundry tools/hydrate.py twice. The second hydration runs with ORAS disabled to prove verified local reuse without registry access. Full file hashes/sizes are checked.
+
+This does not publish, approve, promote, quantize, or test inference of any model. Source and models are not committed to Git. No private repositories, model credentials, PATs, user sessions, CAC/OTP, or production browser controls are involved.
+
+Runner-local storage is ephemeral: GHCR provides a durable distribution point, not a persistent cache on free hosted GHA. ORAS_CACHE only avoids duplicate transfers within one run unless a separate durable host or permitted Actions cache is explicitly set up. Respect Model Artifact Foundry private #6 acquisition/provider policy and #7 candidate selection. New Edge0/Qwen/SmolLM mirrors require separate source and redistribution qualification and reviewed publication authority. This workcell is nonpromoting; BrowserParity private #25 maintains workload DLE.
