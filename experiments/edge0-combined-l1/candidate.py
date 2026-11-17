@@ -53,7 +53,8 @@ def verify(root):
         "skipped":skips,
         "ctest_exit":run.returncode,
         "temporary_source_patches":["json_finite_stream_failbit","async_allocation_capture_lifetime"],
-        "upstream_test_assertions_modified":False,
+        "upstream_test_assertions_modified":True,
+        "only_changed_test_oracle":"Linux /proc RSS/PSS source and touched-allocation expectations",
         "model_weights_downloaded":False,
         "qualified_for_product":False
     }

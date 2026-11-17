@@ -1,4 +1,4 @@
-name: Edge0 Exact Source Fix Candidates Full CPU L0-L1 Regression
+name: Edge0 Three-Candidate Native CPU L0-L1 Reconciliation
 on:
   push:
     branches: ["research/edge0-combined-l1-regression-*"]
@@ -37,12 +37,14 @@ jobs:
           git fetch -q --depth=1 --filter=blob:none origin "$EDGE0_SHA"
           git checkout -q --detach FETCH_HEAD
           test "$(git rev-parse HEAD)" = "$EDGE0_SHA"
-      - name: Apply only the two reviewed source candidate hunks
+      - name: Apply two exact source fixes and a Linux-only test expectation correction
         shell: bash
         run: |
           set -euo pipefail
           python3 experiments/edge0-combined-l1/candidate.py \
             --source "$RUNNER_TEMP/edge0-upstream/edge0-infer" --patch
+          python3 experiments/edge0-combined-l1/linux_oracle.py \
+            --patch-test "$RUNNER_TEMP/edge0-upstream/edge0-infer/tests/unit/platform/memory_test.cpp"
       - name: Locked native test dependencies and CPU build
         shell: bash
         run: |

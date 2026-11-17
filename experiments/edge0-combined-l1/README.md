@@ -7,3 +7,7 @@ Run native CMake CPU build and all actual L0/L1 CTests on independently parallel
 Upstream main at bc2dc409d420097b4e864d511901180d7c2c6bac had identical blobs for these two source locations to the tested pinned upstream SHA. Existing isolated source candidates remain BrowserParity draft PR #27 (worker lifetime, x64 67/200 failures before, 0/200 after) and #28 (JSON 1,022/1,022 numeric comparisons after correction on x64 and ARM64). The combined test must not claim either fix is upstream-adopted, full-model inference-safe, or product-accepted.
 
 Consumer authority BrowserParity-private #25/#56/#76/#109; generic runner census Agent Dispatch-private #223. No real 35B checkpoint, private code, credentials, paid/private minutes, GHCR model publish, or production browser authentication.
+
+## Three-candidate final integration (stacked, separate GHA)
+
+After exact A/B of Linux process-memory fixture in BrowserParity #32 (20/20 original FAIL vs 20/20 corrected PASS on each x64/ARM), this stacked branch overlays that exact source-only test amendment into the full native L0/L1 build with the two runtime source candidates. Only the Linux fixture's stale `__linux__` expectation is changed; other CTest test assertions and all production code except the two source candidate hunks remain untouched. Receipt explicitly sets `upstream_test_assertions_modified=true`. A green matrix qualifies the selected source/fixture regression combination, not 35B inference or implementation promotion.
