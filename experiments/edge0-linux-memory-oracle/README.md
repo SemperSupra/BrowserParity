@@ -1,0 +1,9 @@
+# Edge0 Linux process-memory test expectation repair (test-only)
+
+Earlier full L0/L1 native source tests in BrowserParity draft PR #31 (actual GHA 44038220663) had **100 passes, 1 failure, 3 device skips out of 104** on both x64/ARM64 after applying the independently qualified JSON stream-failbit and async allocation-lifetime candidates. The **only remaining failing native unit test** was `moe_test_platform_memory`, which asserted Linux process metrics must be absent.
+
+Upstream pinned `Edge0-AI/Edge0@f6bfa5546bcf89919f86946ec669bcc7f4cd526d`: `src/platform/memory.cpp` already reads `/proc/self/status` for RSS and `/proc/self/smaps_rollup` for PSS under `__linux__`. `tests/unit/platform/memory_test.cpp` instead has a fallback expecting missing metrics for every non-Apple/non-Windows platform. Its Linux-specific expectation is stale.
+
+This independent free public GHA A/B experiment compiles the **unmodified** `moe_test_platform_memory` binary, runs it in 20 fresh processes per x64/ARM runner, and then compiles the same original unit source with a temporary test-only Linux branch that asserts exact metric sources, positive and peak RSS, PSS current value, absence of PSS peak with reason, and measured RSS/PSS growth after touching a 16MiB allocation. The unsupported-platform branch and original runtime source remain unchanged. The original must fail all trials, and the corrected unit oracle must pass all trials to qualify the test expectation change.
+
+Important: this is a better native source test, not proof that all future Linux distributions expose `/proc` PSS or that production memory budgets and full Edge0 35B offload are correct. No model weights or real browser. No automatic merge or upstream write. BrowserParity-private #25 and #76/#109 retain product qualification; original red unit failures and all exact run receipts stay durable. This work is isolated from MAF OCI/GHCR publication and rights decisions.

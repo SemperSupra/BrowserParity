@@ -1,0 +1,62 @@
+name: Edge0 Linux Process Memory Oracle A-B Qualification
+on:
+  push:
+    branches: ["research/edge0-linux-memory-oracle-*"]
+permissions:
+  contents: read
+concurrency:
+  group: bp-edge0-linux-mem-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  memory-oracle:
+    name: Linux RSS/PSS unit A-B ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    env:
+      EDGE0_SHA: f6bfa5546bcf89919f86946ec669bcc7f4cd526d
+      RUNNER_LABEL: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Exact public upstream source checkout
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/edge0-upstream"
+          cd "$RUNNER_TEMP/edge0-upstream"
+          git init -q
+          git remote add origin https://github.com/Edge0-AI/Edge0.git
+          git sparse-checkout init --cone
+          git sparse-checkout set edge0-infer
+          git fetch -q --depth=1 --filter=blob:none origin "$EDGE0_SHA"
+          git checkout -q --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$EDGE0_SHA"
+      - name: Build original native CPU memory metrics unit test
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/edge0-upstream/edge0-infer"
+          cmake --preset cpu
+          cmake --build --preset cpu --target moe_test_platform_memory --parallel 2
+          cp build/cpu/bin/moe_test_platform_memory "$RUNNER_TEMP/original-memory-test"
+      - name: Update only Linux unit-test expectations in disposable checkout
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/edge0-upstream/edge0-infer"
+          python3 "$GITHUB_WORKSPACE/experiments/edge0-linux-memory-oracle/ab.py" \
+            --patch-test tests/unit/platform/memory_test.cpp
+          cmake --build --preset cpu --target moe_test_platform_memory --parallel 2
+      - name: Compare 20 original and 20 corrected native test-process trials
+        run: |
+          set -euo pipefail
+          python3 experiments/edge0-linux-memory-oracle/ab.py \
+            --baseline "$RUNNER_TEMP/original-memory-test" \
+            --candidate "$RUNNER_TEMP/edge0-upstream/edge0-infer/build/cpu/bin/moe_test_platform_memory" \
+            --reps 20
+      - name: Evidence ceiling
+        if: always()
+        run: echo "Only unit test expectation source changed in disposable checkout; no product code, model assets or privileged runner." >> "$GITHUB_STEP_SUMMARY"
