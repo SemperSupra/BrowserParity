@@ -26,6 +26,7 @@ $expectedDigest = [BitConverter]::ToString(([Security.Cryptography.SHA256]::Crea
 $manifestText = ([ordered]@{name='synthetic.r077';path=$binary;type='stdio';allowed_origins=@('chrome-extension://' + ('a' * 32) + '/')} | ConvertTo-Json -Depth 4 -Compress)
 $checks = 0
 $phase = 'bootstrap'
+$qualifiedReceipt = $null
 function Require([bool]$Condition, [string]$Reason) {
     if (-not $Condition) { throw ('R077 CHECK FAIL: ' + $Reason) }
     $script:checks++
@@ -185,7 +186,7 @@ try {
     Require (Test-Path -LiteralPath $key) 'unknown partial registration refused'
     Remove-Item -LiteralPath $key -ErrorAction Stop
     Require ((Safe-Remove $true) -eq 'ALREADY_REMOVED') 'clean final idempotent removal'
-    [pscustomobject][ordered]@{
+    $qualifiedReceipt = [pscustomobject][ordered]@{
         schema_version=1;grade='REAL_WINDOWS_SYNTHETIC_TWO_PHASE_UNINSTALL'
         status='PASS';checks=$checks
         ps_version=$PSVersionTable.PSVersion.ToString()
@@ -194,8 +195,8 @@ try {
         future_order_green='PREFLIGHT_BEFORE_MUTATION_WITH_IDEMPOTENT_REPLAY'
         owned_registry_present=[bool](Test-Path -LiteralPath $key)
         owned_directory_present=[bool](Test-Path -LiteralPath $folder)
-        browser_hil=false;private_source_executed=false;promotion_authorized=false
-    } | ConvertTo-Json -Compress -Depth 3
+        browser_hil=$false;private_source_executed=$false;promotion_authorized=$false
+    }
 }
 catch {
     Write-Output ('R077_FIRST_FAILURE_PHASE='+$phase)
@@ -232,3 +233,9 @@ finally {
         Remove-Item -LiteralPath $root -ErrorAction Stop
     }
 }
+# Do not publish PASS until the finally/cleanup block has successfully
+# completed. Explicit 0 terminates a standalone job without inheriting the
+# native PS5 host's $? from deliberately caught negative probes.
+if ($null -eq $qualifiedReceipt) { throw 'R077: no qualification receipt' }
+$qualifiedReceipt | ConvertTo-Json -Compress -Depth 3
+exit 0
