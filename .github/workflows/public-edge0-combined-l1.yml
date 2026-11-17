@@ -1,0 +1,66 @@
+name: Edge0 Exact Source Fix Candidates Full CPU L0-L1 Regression
+on:
+  push:
+    branches: ["research/edge0-combined-l1-regression-*"]
+permissions:
+  contents: read
+concurrency:
+  group: bp-edge0-combined-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  full-native-tests:
+    name: Combined source candidates L0-L1 ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    env:
+      EDGE0_SHA: f6bfa5546bcf89919f86946ec669bcc7f4cd526d
+      RUNNER_LABEL: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Source-pin actual upstream without weights
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/edge0-upstream"
+          cd "$RUNNER_TEMP/edge0-upstream"
+          git init -q
+          git remote add origin https://github.com/Edge0-AI/Edge0.git
+          git sparse-checkout init --cone
+          git sparse-checkout set edge0-infer
+          git fetch -q --depth=1 --filter=blob:none origin "$EDGE0_SHA"
+          git checkout -q --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$EDGE0_SHA"
+      - name: Apply only the two reviewed source candidate hunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 experiments/edge0-combined-l1/candidate.py \
+            --source "$RUNNER_TEMP/edge0-upstream/edge0-infer" --patch
+      - name: Locked native test dependencies and CPU build
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/edge0-tools"
+          "$RUNNER_TEMP/edge0-tools/bin/python" -m pip install --no-cache-dir 'uv==0.9.18'
+          export PATH="$RUNNER_TEMP/edge0-tools/bin:$PATH"
+          cd "$RUNNER_TEMP/edge0-upstream/edge0-infer"
+          uv sync --project tools/assets --group dev --frozen
+          cmake --preset cpu
+          cmake --build --preset cpu --parallel 2
+      - name: Execute complete upstream L0-L1 matrix with original assertions
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$RUNNER_TEMP/edge0-tools/bin:$PATH"
+          python3 experiments/edge0-combined-l1/candidate.py \
+            --source "$RUNNER_TEMP/edge0-upstream/edge0-infer" --test
+      - name: Evidence ceiling
+        if: always()
+        run: echo "Full source L0/L1 only. No model weights, GHCR write, skipped-test promotion, private code or upstream mutation." >> "$GITHUB_STEP_SUMMARY"
