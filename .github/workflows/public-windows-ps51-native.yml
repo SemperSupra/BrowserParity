@@ -1,0 +1,44 @@
+name: Public Windows PS51 Native Semantics R076
+
+on:
+  push:
+    branches:
+      - research/r076-public-ps51-native-idioms-20261117
+    paths:
+      - ".github/workflows/public-windows-ps51-native.yml"
+      - "experiments/public-windows-ps51-native/**"
+  pull_request:
+    paths:
+      - ".github/workflows/public-windows-ps51-native.yml"
+      - "experiments/public-windows-ps51-native/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-ps51-native-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    name: Native PS 5.1 synthetic probe (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 8
+    steps:
+      - name: Checkout public synthetic sources only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Verify PowerShell 5.1 and run bounded fixture
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw "Not Windows PowerShell 5.x" }
+          Write-Output "R076_SOURCE_SHA=${{ github.sha }}"
+          Write-Output "R076_RUNNER_IMAGE=${{ matrix.os }}"
+          & .\experiments\public-windows-ps51-native\qualify.ps1
