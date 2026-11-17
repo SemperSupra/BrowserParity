@@ -20,8 +20,8 @@ jobs:
     env:
       EDGE0_SHA: f6bfa5546bcf89919f86946ec669bcc7f4cd526d
       CENSUS_RUNNER_LABEL: ${{ matrix.runner }}
-      MOE_SOURCE_35B: ${{ runner.temp }}/edge0-text-source
-      MOE_TINY: ${{ runner.temp }}/edge0-tiny
+      MOE_SOURCE_35B: /tmp/edge0-text-source
+      MOE_TINY: /tmp/edge0-tiny
       UV_NO_PROGRESS: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
