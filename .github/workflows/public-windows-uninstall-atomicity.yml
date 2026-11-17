@@ -1,0 +1,37 @@
+name: Public Windows R077 Fail-Before-Mutate Uninstall
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/public-windows-uninstall-atomicity.yml"
+      - "experiments/public-windows-uninstall-atomicity/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r077-public-uninstall-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: Real PS5.1 owned synthetic A-B (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 8
+    steps:
+      - name: Checkout source-safe synthetic tests
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Windows PowerShell 5.1 fault matrix
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw 'PS5 required' }
+          Write-Output 'R077_SOURCE_SHA=${{ github.sha }}'
+          Write-Output 'R077_OS=${{ matrix.os }}'
+          & .\experiments\public-windows-uninstall-atomicity\r077.ps1
