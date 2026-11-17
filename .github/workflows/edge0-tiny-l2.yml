@@ -1,4 +1,4 @@
-name: Edge0 x64 Targeted L2 Expert-Slot Timeout Qualification
+name: Edge0 x64 Serial Nine-Test L2 Qualification
 on:
   push:
     branches: ["research/edge0-tiny-l2-*"]
@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   tiny-fixture:
-    name: Edge0 slots x64 retry ${{ matrix.runner }}
+    name: Edge0 serial 9 L2 ${{ matrix.runner }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 18
     strategy:
@@ -49,7 +49,7 @@ jobs:
           cd "$RUNNER_TEMP/upstream/edge0-infer"
           uv sync --project tools/assets --group dev --frozen
           cmake --preset cpu
-          cmake --build --preset cpu --target moe_test_edge0_35b_slots --parallel 2
+          cmake --build --preset cpu --parallel 2
       - name: Download three verified public text files and generate two random-weight tiny fixtures
         run: |
           set -euo pipefail

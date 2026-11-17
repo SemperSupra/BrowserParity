@@ -10,7 +10,7 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
-PATTERN = r"^moe_test_edge0_35b_slots$"
+PATTERN = r"^(moe_test_asset_tools_l2|moe_test_model_tiny|moe_test_edge0_35b_loading|moe_test_edge0_35b_forward|moe_test_edge0_35b_slots|moe_test_generate|moe_test_weights_compute|moe_test_prerouter_cpu|moe_test_routing_predicted_cpu)$"
 
 def main():
     p = argparse.ArgumentParser()
@@ -19,7 +19,7 @@ def main():
     args = p.parse_args()
     junit = pathlib.Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "edge0-l2.xml"
     cmd = ["ctest", "--test-dir", args.ctest_dir, "-L", "L2", "-LE", "device",
-           "-R", PATTERN, "--parallel", "1", "--timeout", "240",
+           "-R", PATTERN, "--parallel", "1", "--timeout", "180",
            "--output-on-failure", "--output-junit", str(junit)]
     run = subprocess.run(cmd, text=True, stdout=subprocess.PIPE,
                          stderr=subprocess.STDOUT, timeout=720)
@@ -49,7 +49,7 @@ def main():
     summary = pathlib.Path(os.environ.get("GITHUB_STEP_SUMMARY", "/dev/null"))
     with summary.open("a") as out:
         out.write("BP_EDGE0_TINY_L2_RECEIPT=" + json.dumps(receipt, sort_keys=True) + "\n")
-    assert len(cases) == 1 and all(sizes.values()), "Targeted x64 slot oracle did not execute exactly once"
+    assert len(cases) == 9 and all(sizes.values()), "Full serial nine-test L2 oracle did not run"
     assert not failed and run.returncode == 0, "Selected upstream L2 tests failed"
 
 if __name__ == "__main__":
