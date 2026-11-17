@@ -67,18 +67,19 @@ try {
     $phase = 'registry-key create'
     [void](New-Item -Path $registryRoot -ErrorAction Stop)
     [void](New-Item -Path $registryKey -ErrorAction Stop)
-    $reg = Get-Item -LiteralPath $registryKey
+    # Registry provider Get-Item yields a read-only RegistryKey; use Set-Item
+    # to write the (Default) value under PS5.1, never .SetValue on Get-Item.
     $phase = 'registry default value'
-    $reg.SetValue('', $manifest, [Microsoft.Win32.RegistryValueKind]::String)
+    Set-Item -Path $registryKey -Value $manifest -ErrorAction Stop
     RefuseForeignRegistration $manifest
     Check ([string]::Equals((Get-Item -LiteralPath $registryKey).GetValue(''), $manifest, [StringComparison]::Ordinal)) 'exact HKCU default value'
     $phase = 'foreign-value negative'
-    $reg.SetValue('', 'FOREIGN-REPLACEMENT', [Microsoft.Win32.RegistryValueKind]::String)
+    Set-Item -Path $registryKey -Value 'FOREIGN-REPLACEMENT' -ErrorAction Stop
     $denied = $false
     try { RefuseForeignRegistration $manifest }
     catch { $denied = $_.Exception.Message -match '^DENY: foreign registry value' }
     Check $denied 'foreign registration must deny'
-    $reg.SetValue('', $manifest, [Microsoft.Win32.RegistryValueKind]::String)
+    Set-Item -Path $registryKey -Value $manifest -ErrorAction Stop
     RefuseForeignRegistration $manifest
     Check $true 'registration restored only after explicit test state'
     $phase = 'managed-file unknown-negative'
