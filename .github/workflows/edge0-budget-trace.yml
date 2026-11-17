@@ -1,0 +1,61 @@
+name: Edge0 Resident-Weight Byte Accounting Instrumentation
+on:
+  push:
+    branches: ["research/edge0-budget-trace-*"]
+permissions:
+  contents: read
+concurrency:
+  group: edge0-budget-trace-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  differential:
+    name: Edge0 accounting differential ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    env:
+      EDGE0_SHA: f6bfa5546bcf89919f86946ec669bcc7f4cd526d
+      CENSUS_RUNNER_LABEL: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Exact source and original native CPU budget-test binary
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/upstream"
+          cd "$RUNNER_TEMP/upstream"
+          git init -q
+          git remote add origin https://github.com/Edge0-AI/Edge0.git
+          git sparse-checkout init --cone
+          git sparse-checkout set edge0-infer
+          git fetch -q --depth=1 --filter=blob:none origin "$EDGE0_SHA"
+          git checkout -q --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$EDGE0_SHA"
+          cd edge0-infer
+          cmake --preset cpu
+          cmake --build --preset cpu --target moe_test_weights_mixed --parallel 2
+          cp build/cpu/bin/moe_test_weights_mixed "$RUNNER_TEMP/baseline-budget"
+      - name: Add strictly diagnostic printouts to disposable upstream test copy
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/upstream/edge0-infer"
+          python3 "$GITHUB_WORKSPACE/experiments/edge0-budget-trace/trace.py" \
+            --instrument-source tests/unit/weights/mixed_storage_test.cpp
+          cmake --build --preset cpu --target moe_test_weights_mixed --parallel 2
+      - name: Repeat exact unmodified and instrumented binaries and verify numeric accounting
+        run: |
+          set -euo pipefail
+          python3 experiments/edge0-budget-trace/trace.py \
+            --baseline "$RUNNER_TEMP/baseline-budget" \
+            --instrumented "$RUNNER_TEMP/upstream/edge0-infer/build/cpu/bin/moe_test_weights_mixed" \
+            --reps 80
+      - name: Evidence ceiling
+        if: always()
+        run: |
+          echo 'Source pinned; instrumentation only in ephemeral upstream test copy, never PR source or main.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'No real 35B checkpoint, load stress, private source, account, credential or production effect.' >> "$GITHUB_STEP_SUMMARY"
