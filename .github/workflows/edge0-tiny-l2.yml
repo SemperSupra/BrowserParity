@@ -1,0 +1,78 @@
+name: Edge0 Tiny Random-Weight CPU L2 Qualification
+on:
+  push:
+    branches: ["research/edge0-tiny-l2-*"]
+permissions:
+  contents: read
+concurrency:
+  group: edge0-tiny-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  tiny-fixture:
+    name: Edge0 L2 ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    env:
+      EDGE0_SHA: f6bfa5546bcf89919f86946ec669bcc7f4cd526d
+      CENSUS_RUNNER_LABEL: ${{ matrix.runner }}
+      MOE_SOURCE_35B: ${{ runner.temp }}/edge0-text-source
+      MOE_TINY: ${{ runner.temp }}/edge0-tiny
+      UV_NO_PROGRESS: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Exact upstream SHA and free-space gate
+        run: |
+          set -euo pipefail
+          python3 -c 'import os,shutil; assert shutil.disk_usage(os.environ["RUNNER_TEMP"]).free >= 8000000000'
+          mkdir -p "$RUNNER_TEMP/upstream"
+          cd "$RUNNER_TEMP/upstream"
+          git init -q
+          git remote add origin https://github.com/Edge0-AI/Edge0.git
+          git sparse-checkout init --cone
+          git sparse-checkout set edge0-infer
+          git fetch -q --depth=1 --filter=blob:none origin "$EDGE0_SHA"
+          git checkout -q --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$EDGE0_SHA"
+      - name: Locked tools and native CPU build
+        run: |
+          set -euo pipefail
+          python3 -m venv "$RUNNER_TEMP/tools"
+          "$RUNNER_TEMP/tools/bin/python" -m pip install --no-cache-dir 'uv==0.9.18'
+          export PATH="$RUNNER_TEMP/tools/bin:$PATH"
+          cd "$RUNNER_TEMP/upstream/edge0-infer"
+          uv sync --project tools/assets --group dev --frozen
+          cmake --preset cpu
+          cmake --build --preset cpu --parallel 2
+      - name: Download three verified public text files and generate two random-weight tiny fixtures
+        run: |
+          set -euo pipefail
+          export PATH="$RUNNER_TEMP/tools/bin:$PATH"
+          cd "$RUNNER_TEMP/upstream/edge0-infer"
+          mkdir -p "$MOE_TINY"
+          timeout 240s uv run --project tools/assets --offline --no-sync python -I tools/assets/edge0_35b/fetch_source.py download \
+            --out "$MOE_SOURCE_35B" --files tokenizer.json chat_template.jinja generation_config.json
+          test "$(du -sb "$MOE_SOURCE_35B" | cut -f1)" -le 32000000
+          timeout 180s uv run --project tools/assets --offline --no-sync python -I tools/assets/edge0_35b/make_tiny.py \
+            --source "$MOE_SOURCE_35B" --out "$MOE_TINY/tiny-a"
+          timeout 180s uv run --project tools/assets --offline --no-sync python -I tools/assets/edge0_35b/make_tiny.py \
+            --source "$MOE_SOURCE_35B" --out "$MOE_TINY/tiny-b"
+          uv run --project tools/assets --offline --no-sync python -I tools/assets/check_assets.py check "$MOE_TINY/tiny-a"
+          uv run --project tools/assets --offline --no-sync python -I tools/assets/check_assets.py check "$MOE_TINY/tiny-b"
+      - name: Real native model-level L2 oracle
+        run: |
+          set -euo pipefail
+          export PATH="$RUNNER_TEMP/tools/bin:$PATH"
+          cd "$RUNNER_TEMP/upstream/edge0-infer"
+          python3 "$GITHUB_WORKSPACE/experiments/edge0-tiny-l2/receipt.py" --ctest-dir build/cpu --model-root "$MOE_TINY"
+      - name: Evidence ceiling
+        if: always()
+        run: |
+          echo "Public random weights only; no real 35B checkpoint, private data, credential or production inference." >> "$GITHUB_STEP_SUMMARY"
+          echo "Actual L2 failure and skipped tests are not promoted to a model-capability PASS." >> "$GITHUB_STEP_SUMMARY"
