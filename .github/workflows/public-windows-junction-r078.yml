@@ -1,0 +1,37 @@
+name: Public Windows R078 NTFS Ancestor Admission
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/public-windows-junction-r078.yml"
+      - "experiments/public-windows-junction/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-windows-r078-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  junction-admission:
+    name: Windows 5.1 junction differential (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    steps:
+      - name: Checkout public fixture only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run bounded NTFS junction negative and positive
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($PSVersionTable.PSVersion.Major -ne 5) { throw 'Windows PowerShell 5 required' }
+          Write-Output 'R078_SOURCE_SHA=${{ github.sha }}'
+          Write-Output 'R078_RUNNER_IMAGE=${{ matrix.os }}'
+          & .\experiments\public-windows-junction\r078.ps1
