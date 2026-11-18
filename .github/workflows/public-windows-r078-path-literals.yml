@@ -1,0 +1,24 @@
+name: R078 public Windows PowerShell path-literal qualification
+on:
+  push:
+    branches:
+      - research/r078-ps51-path-classification-20261118
+permissions:
+  contents: read
+jobs:
+  path-lexical:
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.image }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Public-safe in-memory PowerShell 5.1 lexical experiment
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & './experiments/public-windows-path-literals/r078.ps1'
