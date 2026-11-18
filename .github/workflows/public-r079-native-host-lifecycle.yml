@@ -1,0 +1,59 @@
+name: R079 Public Windows Native-Message Stop EOF and Reconnect Qualification
+on:
+  push:
+    branches: ["research/r079-public-native-host-stop-eof-*"]
+permissions:
+  contents: read
+concurrency:
+  group: bp-r079-native-life-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  synthetic-lifecycle:
+    name: Actual Windows subprocess lifecycle ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        runner: [windows-2022, windows-2025]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Source-only real Windows child process lifecycle qualification
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSVersionTable.PSVersion.ToString()
+          go version
+          if ($LASTEXITCODE -ne 0) { throw 'go not available' }
+          Set-Location experiments/public-r079-native-host-lifecycle
+          go vet ./...
+          if ($LASTEXITCODE -ne 0) { throw 'go vet failed' }
+          go test -count=1 -timeout=8m -v ./...
+          if ($LASTEXITCODE -ne 0) { throw 'synthetic lifecycle regression failed' }
+          $receipt = @{
+            schema = 'bp-r079-native-lifecycle/v1'
+            source_sha = $env:GITHUB_SHA
+            runner = $env:RUNNER_NAME
+            os_image = $env:ImageOS
+            processor_arch = $env:PROCESSOR_ARCHITECTURE
+            powershell = $PSVersionTable.PSVersion.ToString()
+            eof_stop_trials = 24
+            all_source_tests = 'PASS'
+            source_public_only = $true
+            browser_launched = $false
+            user_profile_accessed = $false
+            native_host_registered = $false
+            actual_operator_approval = $false
+            real_selected_tab_hil = $false
+            promotion_authorized = $false
+          } | ConvertTo-Json -Compress
+          Write-Output "R079_SYNTHETIC_NATIVE_LIFECYCLE_RECEIPT=$receipt"
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value "R079_SYNTHETIC_NATIVE_LIFECYCLE_RECEIPT=$receipt"
+      - name: Containment reminder
+        if: always()
+        shell: powershell
+        run: |
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value 'Actual Windows subprocess synthetic fixture ONLY; no Chrome native host installation, operator approval, ChatGPT account, credentials, browser extension or trusted HIL.'
