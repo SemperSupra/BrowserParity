@@ -31,8 +31,8 @@ function Check([bool]$ok,[string]$label) {
 }
 function Assert-NoReparsePath([string]$PathValue) {
     if ([string]::IsNullOrWhiteSpace($PathValue) -or
-        $PathValue -notmatch '^[A-Za-z]:\' -or
-        $PathValue -match '(^|[\/])\.\.?([\/]|$)') {
+        $PathValue -notmatch '^[A-Za-z]:\\' -or
+        $PathValue -match '(^|[\\/])\.\.?([\\/]|$)') {
         throw 'DENY: noncanonical drive-local path'
     }
     $cursor=[IO.Path]::GetFullPath($PathValue)
