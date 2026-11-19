@@ -17,6 +17,7 @@ const root = mkdtempSync(path.join(temp,'r080-owned-browser-'));
 const profile = path.join(root,'chromium-owned-profile');
 const hostExe = process.env.R080_SYNTHETIC_EXE;
 const audit = path.join(root,'synthetic-host-audit.jsonl');
+process.env.R080_SYNTHETIC_AUDIT = audit; // inherited only by disposable Chromium child processes
 const manifestPath = path.join(root,'owned-native-host.json');
 const sleep = ms => new Promise(resolve=>setTimeout(resolve,ms));
 let registered = false;
