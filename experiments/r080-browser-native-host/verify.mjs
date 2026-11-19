@@ -87,6 +87,55 @@ async function holdAndStop(worker) {
     },120);
   }),HOST);
 }
+
+async function openPersistentPort(worker) {
+  return await worker.evaluate(host=>new Promise(resolve=>{
+    const p=chrome.runtime.connectNative(host);
+    globalThis.__r081port=p;
+    globalThis.__r081pending=resolve;
+    globalThis.__r081disconnected=false;
+    p.onMessage.addListener(msg=>{
+      const cb=globalThis.__r081pending;
+      globalThis.__r081pending=null;
+      if(cb) cb({kind:'MESSAGE',payload:msg});
+    });
+    p.onDisconnect.addListener(()=>{
+      globalThis.__r081disconnected=true;
+      const cb=globalThis.__r081pending;
+      globalThis.__r081pending=null;
+      if(cb) cb({kind:'DISCONNECT',error:chrome.runtime.lastError?.message||'disconnected'});
+    });
+    p.postMessage({kind:'ping',nonce:'persistent-open'});
+    setTimeout(()=>{
+      const cb=globalThis.__r081pending;
+      globalThis.__r081pending=null;
+      if(cb) cb({kind:'TIMEOUT'});
+    },4000);
+  }),HOST);
+}
+async function probePersistentPortAfterUnregister(worker) {
+  return await worker.evaluate(()=>new Promise(resolve=>{
+    if(!globalThis.__r081port||globalThis.__r081disconnected) {
+      resolve({kind:'DISCONNECT'});return;
+    }
+    globalThis.__r081pending=resolve;
+    globalThis.__r081port.postMessage({kind:'ping',nonce:'post-unregister'});
+    setTimeout(()=>{
+      const cb=globalThis.__r081pending;
+      globalThis.__r081pending=null;
+      if(cb) cb({kind:'TIMEOUT'});
+    },4000);
+  }));
+}
+async function closePersistentPort(worker) {
+  return await worker.evaluate(()=>{
+    if(globalThis.__r081port) globalThis.__r081port.disconnect();
+    globalThis.__r081port=null;
+    globalThis.__r081pending=null;
+    return true;
+  });
+}
+
 const receipt={
   schema:'bp-r080-real-chromium-native-message/v1',
   github_sha:process.env.GITHUB_SHA||'',
@@ -130,11 +179,33 @@ try {
   await waitAudit('exit',1);
   receipt.real_browser_native_host_launched=true;
   receipt.positive_exact_origin_frame_reply=true;
+  // R081: Browser revocation differential: removing a host's HKCU lookup
+  // does NOT necessarily revoke a nativeMessaging port already connected.
+  const live=await openPersistentPort(worker);
+  assert.equal(live.kind,'MESSAGE','cannot establish persistent real browser native port');
+  assert.equal(live.payload?.nonce,'persistent-open');
+  await waitAudit('launch',2);
+  unregister();
+  const freshAfterRemove=await message(worker,'ping','fresh-port-after-unregister');
+  assert.notEqual(freshAfterRemove.kind,'MESSAGE','new port admitted after HKCU unregister');
+  assert.equal(readAudit().filter(x=>x.kind==='launch').length,2,'new host launched after unregister');
+  const observedLive=await probePersistentPortAfterUnregister(worker);
+  assert.notEqual(observedLive.kind,'TIMEOUT','existing-port revocation state ambiguous');
+  if(observedLive.kind==='MESSAGE') {
+    assert.equal(observedLive.payload?.nonce,'post-unregister');
+  }
+  receipt.active_port_survived_registry_unregistration=(observedLive.kind==='MESSAGE');
+  receipt.active_port_after_registry_unregister=observedLive.kind;
+  receipt.new_ports_denied_after_registry_unregister=true;
+  await closePersistentPort(worker);
+  await waitAudit('exit',2);
+  receipt.explicit_active_port_disconnect_verified=true;
+  register(trustedOrigin);
   // Browser port disconnect must close the pending, nonresponding host.
   const noLate=await holdAndStop(worker);
   assert.equal(noLate.messages,0,'late response after caller Stop');
-  await waitAudit('launch',2);
-  await waitAudit('exit',2);
+  await waitAudit('launch',3);
+  await waitAudit('exit',3);
   receipt.disconnect_pending_no_late_message=true;
   // A removed host must not be reachable even if extension remains loaded.
   unregister();
