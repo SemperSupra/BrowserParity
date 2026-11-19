@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "R080 Owned Synthetic NativeMessaging Probe",
+  "version": "0.0.1",
+  "permissions": [
+    "nativeMessaging"
+  ],
+  "background": {
+    "service_worker": "worker.js"
+  }
+}
