@@ -1,0 +1,12 @@
+{
+  "name": "browserparity-r082-synthetic-native-host",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node verify.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.56.1"
+  }
+}
