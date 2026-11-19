@@ -1,0 +1,72 @@
+name: Public R082 Chromium Multiport Selected-Adjacent Stop and Reconnect Qualification
+on:
+  push:
+    branches: ["research/r082-public-multiport-stop-*"]
+permissions:
+  contents: read
+concurrency:
+  group: bp-r082-chromium-native-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native-browser:
+    name: Real Chromium multiport stop ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        runner: [windows-2022, windows-2025]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Build synthetic public Windows native-messaging host
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          go version
+          if ($LASTEXITCODE -ne 0) { throw 'No Go compiler on public hosted Windows runner' }
+          $app = Join-Path $env:GITHUB_WORKSPACE 'experiments\r082-browser-native-host'
+          $exe = Join-Path $env:RUNNER_TEMP 'r082-synthetic-only-host.exe'
+          go build -trimpath -o $exe (Join-Path $app 'host\main.go')
+          if ($LASTEXITCODE -ne 0) { throw 'Go source failed to compile' }
+          if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw 'No synthetic host binary' }
+          "R082_SYNTHETIC_EXE=$exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding ascii -Append
+      - name: Install pinned Playwright Chromium in ephemeral runner only
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          node --version
+          npm --version
+          $app = Join-Path $env:GITHUB_WORKSPACE 'experiments\r082-browser-native-host'
+          Set-Location $app
+          npm install --no-fund --no-audit --ignore-scripts --no-save
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned public playwright npm dependency unavailable' }
+          npx --no-install playwright install chromium
+          if ($LASTEXITCODE -ne 0) { throw 'Public Playwright Chromium browser unavailable' }
+      - name: Exact ephemeral browser-launched HKCU native host lifecycle and negatives
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-Location (Join-Path $env:GITHUB_WORKSPACE 'experiments\r082-browser-native-host')
+          node verify.mjs 2>&1 | Tee-Object -FilePath (Join-Path $env:RUNNER_TEMP 'r082-probe.log')
+          if ($LASTEXITCODE -ne 0) { throw 'Actual Chromium native messaging test rejected or failed' }
+          $receipt = Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'r082-probe.log') |
+            Where-Object { $_ -match '^BP_R082_MULTIPORT_RECEIPT=\{' } | Select-Object -Last 1
+          if (-not $receipt) { throw 'Missing machine-readable native host browser receipt' }
+          $payload = [string]$receipt -replace '^BP_R082_MULTIPORT_RECEIPT=', ''
+          $r = $payload | ConvertFrom-Json
+          if ($r.status -ne 'PASS' -or -not $r.registry_cleanup -or
+              -not $r.stop_one_does_not_stop_sibling -or -not $r.stop_all_terminated_all_hosts -or
+              -not $r.post_stop_reconnect_denied -or -not $r.same_extension_origin_for_distinct_tabs -or
+              -not $r.registry_unregistration_retains_active_port -or $r.selected_tab_authority_qualified -or
+              $r.promotion_authorized) {
+            throw 'Misclassified real Chromium multiport stop result'
+          }
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $receipt
+      - name: Explicit acceptance boundary
+        if: always()
+        shell: powershell
+        run: |
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value 'Public synthetic unpacked MV3 on fresh Playwright Chromium, ephemeral HKCU host. TWO locally served synthetic tabs, multiple native ports, sibling survival and explicit Stop. NOT BrowserParity private code, not operator-approved product H0, not Chrome/Edge branded or authenticated ChatGPT user tab.'
