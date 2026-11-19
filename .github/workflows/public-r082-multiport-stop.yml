@@ -27,7 +27,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           go version
           if ($LASTEXITCODE -ne 0) { throw 'No Go compiler on public hosted Windows runner' }
-          $app = Join-Path $env:GITHUB_WORKSPACE 'experiments\r082-browser-native-host'
+          $app = Join-Path $env:GITHUB_WORKSPACE 'experiments\r082-multiport-native'
           $exe = Join-Path $env:RUNNER_TEMP 'r082-synthetic-only-host.exe'
           go build -trimpath -o $exe (Join-Path $app 'host\main.go')
           if ($LASTEXITCODE -ne 0) { throw 'Go source failed to compile' }
@@ -39,7 +39,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           node --version
           npm --version
-          $app = Join-Path $env:GITHUB_WORKSPACE 'experiments\r082-browser-native-host'
+          $app = Join-Path $env:GITHUB_WORKSPACE 'experiments\r082-multiport-native'
           Set-Location $app
           npm install --no-fund --no-audit --ignore-scripts --no-save
           if ($LASTEXITCODE -ne 0) { throw 'Pinned public playwright npm dependency unavailable' }
@@ -49,7 +49,7 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          Set-Location (Join-Path $env:GITHUB_WORKSPACE 'experiments\r082-browser-native-host')
+          Set-Location (Join-Path $env:GITHUB_WORKSPACE 'experiments\r082-multiport-native')
           node verify.mjs 2>&1 | Tee-Object -FilePath (Join-Path $env:RUNNER_TEMP 'r082-probe.log')
           if ($LASTEXITCODE -ne 0) { throw 'Actual Chromium native messaging test rejected or failed' }
           $receipt = Get-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'r082-probe.log') |
