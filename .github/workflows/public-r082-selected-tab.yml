@@ -1,0 +1,62 @@
+name: R082 Public Real Chromium Selected-Tab Read-Only Synthetic Falsifiers
+on:
+  push:
+    branches: ["research/r082-selected-tab-scoped-extension-*"]
+permissions:
+  contents: read
+concurrency:
+  group: bp-r082-selected-tab-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  real-chromium-scope:
+    name: Real Chromium selected/adjacent ${{ matrix.runner }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 16
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        runner: [windows-2022, windows-2025]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Pin source-public Chromium test dependency and engine
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-Location (Join-Path $env:GITHUB_WORKSPACE 'experiments\r080-browser-native-host')
+          node --version
+          node --check scoped.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Invalid scoped synthetic source' }
+          npm install --no-fund --no-audit --ignore-scripts --no-save
+          if ($LASTEXITCODE -ne 0) { throw 'Public synthetic Playwright installation failed' }
+          npx --no-install playwright install chromium
+          if ($LASTEXITCODE -ne 0) { throw 'Disposable Chromium unavailable' }
+      - name: Browser-real two-tab grant and fail-closed Stop/redirect/reconnect
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-Location (Join-Path $env:GITHUB_WORKSPACE 'experiments\r080-browser-native-host')
+          $log = Join-Path $env:RUNNER_TEMP 'r082-scoped-owned-tab.log'
+          node scoped.mjs 2>&1 | Tee-Object -FilePath $log
+          if ($LASTEXITCODE -ne 0) { throw 'Real Chromium selected-tab scope oracle failed' }
+          $line = Get-Content -LiteralPath $log |
+            Where-Object { $_ -match '^BP_R082_SELECTED_TAB_RECEIPT=\{' } | Select-Object -Last 1
+          if (-not $line) { throw 'No exact source R082 receipt' }
+          $r = ([string]$line -replace '^BP_R082_SELECTED_TAB_RECEIPT=', '') | ConvertFrom-Json
+          if ($r.status -ne 'PASS' -or $r.actual_disposable_tabs -ne 2 -or
+              -not $r.adjacent_tab_denied -or -not $r.stop_denied -or
+              -not $r.browser_reconnect_stale_grant_denied -or
+              -not $r.url_drift_denied -or -not $r.focus_change_denied -or
+              -not $r.stale_epoch_denied -or
+              $r.adjacent_dom_mutations -ne 0 -or $r.actual_human_operator_grant -or
+              $r.promotion_authorized -or $r.real_provider_login) {
+            throw 'Insufficient or misclassified two-tab real Chromium receipt'
+          }
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $line
+      - name: Keep HIL permission distinction legible
+        if: always()
+        shell: powershell
+        run: |
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value 'Actual disposable Chromium tests with two run-owned localhost pages; synthetic in-worker test grant only. NOT private BrowserParity selected-tab extension, actual human approval, authenticated ChatGPT M2 or product release.'
